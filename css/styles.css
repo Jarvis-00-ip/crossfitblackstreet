@@ -71,6 +71,11 @@ body {
 body.nav-open { overflow: hidden; }
 
 img, svg, video, iframe { max-width: 100%; display: block; }
+
+/* L'attributo [hidden] vale `display: none` solo come stile del browser:
+   qualsiasi `display` dichiarato qui lo sovrascriverebbe (es. .btn è
+   inline-flex). Questa riga fa sì che [hidden] nasconda sempre davvero. */
+[hidden] { display: none !important; }
 a { color: inherit; text-decoration: none; }
 button, input, textarea { font: inherit; color: inherit; }
 ul { list-style: none; margin: 0; padding: 0; }
@@ -1092,6 +1097,17 @@ h1, h2, h3, h4 {
   font-size: 0.82rem;
   color: #ff7a7a;
   min-height: 0;
+}
+
+/* Honeypot: nascosto senza display:none, che alcuni bot riconoscono e saltano. */
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .form-status {

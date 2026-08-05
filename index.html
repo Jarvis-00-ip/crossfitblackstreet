@@ -306,6 +306,13 @@
             </p>
 
             <form class="contact-form" id="contactForm" novalidate>
+              <!-- Honeypot antispam: invisibile e fuori dal tab order.
+                   Se arriva compilato, chi ha inviato il form è un bot. -->
+              <div class="hp-field" aria-hidden="true">
+                <label for="website">Sito web (non compilare)</label>
+                <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+              </div>
+
               <div class="field">
                 <label for="name">Nome<span aria-hidden="true">*</span></label>
                 <input type="text" id="name" name="name" autocomplete="name" required placeholder="Mario Rossi" />

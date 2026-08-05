@@ -1,0 +1,243 @@
+/* =========================================================================
+   admin.css — Pannello di amministrazione.
+   Riusa i design token e i componenti di form di styles.css.
+   ========================================================================= */
+
+.admin-body { background: var(--bg-alt); }
+
+/* ---------- Header ---------- */
+.admin-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(11, 11, 13, 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.admin-header-inner {
+  width: min(1240px, 100% - 40px);
+  margin-inline: auto;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+/* ---------- Layout ---------- */
+.admin-main {
+  width: min(1240px, 100% - 40px);
+  margin: 32px auto 80px;
+}
+
+.admin-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: clamp(22px, 3vw, 32px);
+}
+.admin-panel + .admin-panel { margin-top: 20px; }
+
+.admin-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.admin-title { font-size: 1.7rem; margin-bottom: 0.3em; }
+.admin-desc { font-size: 0.9rem; margin-bottom: 20px; }
+
+.admin-login { max-width: 440px; margin: 8vh auto 0; }
+
+.admin-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* ---------- Tabs ---------- */
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.25s var(--ease);
+}
+.admin-tab:hover { border-color: var(--accent); }
+.admin-tab[aria-selected='true'] {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
+}
+.admin-tab .count {
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  padding: 1px 8px;
+  letter-spacing: 0;
+}
+
+/* ---------- Form ---------- */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.field .hint {
+  font-style: normal;
+  font-family: var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.field.checks { gap: 10px; padding-top: 26px; }
+
+/* Selettori qualificati con .field: servono a battere `.field label` e
+   `.field label span` di styles.css, pensati per le etichette dei campi
+   obbligatori (maiuscolo + asterisco arancione). */
+.field .check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #dcdce2;
+  cursor: pointer;
+}
+.field .check span { color: inherit; margin-left: 0; }
+.field .check input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+
+/* ---------- Liste ---------- */
+.admin-list { display: grid; gap: 10px; }
+
+.admin-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.25s var(--ease);
+}
+.admin-row:hover { border-color: var(--line-strong); }
+.admin-row.is-draft { border-left: 3px solid var(--muted); opacity: 0.78; }
+.admin-row.is-featured { border-left: 3px solid var(--accent); }
+.admin-row.is-new { border-left: 3px solid var(--hyrox); }
+
+.admin-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-row-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.admin-row-meta {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+.admin-row-body {
+  font-size: 0.9rem;
+  color: #c9c9d2;
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.pill.on { background: var(--accent-soft); border-color: rgba(255, 61, 23, 0.4); color: #ffa98f; }
+.pill.warn { background: var(--hyrox-soft); border-color: rgba(255, 176, 32, 0.4); color: var(--hyrox); }
+
+.admin-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.mini-btn {
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.22s var(--ease);
+}
+.mini-btn:hover { border-color: var(--accent); color: var(--accent-2); }
+.mini-btn.danger:hover { border-color: #ff5b5b; color: #ff7a7a; }
+
+.admin-empty {
+  padding: 34px 18px;
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-error {
+  margin-top: 20px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  color: #ff9a9a;
+  font-size: 0.9rem;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 960px) {
+  .admin-columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .admin-header-inner, .admin-main { width: calc(100% - 28px); }
+  .field-row { grid-template-columns: 1fr; }
+  .field.checks { padding-top: 0; }
+}

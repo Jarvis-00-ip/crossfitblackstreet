@@ -1,0 +1,111 @@
+rules_version = '2';
+
+/**
+ * Security Rules — CrossFit Black Street
+ *
+ * Qui sta TUTTA la sicurezza del backend: la config Firebase nel JavaScript è
+ * pubblica per design, quindi chiunque può parlare con Firestore. Ciò che può
+ * fare lo decidono solo queste regole.
+ *
+ * Deploy:  firebase deploy --only firestore:rules
+ * Test:    Console Firebase → Firestore → Regole → Playground
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------------------------------------------------------------- *
+     * Helper
+     * ---------------------------------------------------------------- */
+
+    // È admin chi è autenticato E ha un documento in /admins con il proprio UID.
+    // Il documento si crea a mano dalla console: così creare un account non
+    // basta per ottenere privilegi, serve un gesto esplicito del proprietario.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isString(value, minLen, maxLen) {
+      return value is string && value.size() >= minLen && value.size() <= maxLen;
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /admins — elenco degli amministratori
+     * ---------------------------------------------------------------- */
+    match /admins/{uid} {
+      // Ognuno può verificare solo il proprio stato (serve al pannello admin).
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false;
+      // Nessuno si promuove da solo: si aggiunge un admin dalla console.
+      allow write: if false;
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /events — bacheca eventi
+     * ---------------------------------------------------------------- */
+    match /events/{eventId} {
+
+      function validEvent() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+                 'title', 'badge', 'date', 'time', 'description',
+                 'workout', 'info', 'featured', 'published',
+                 'sortIndex', 'createdAt', 'updatedAt'
+               ])
+          && isString(d.title, 1, 80)
+          && isString(d.get('badge', ''), 0, 40)
+          && isString(d.get('date', ''), 0, 60)
+          && isString(d.get('time', ''), 0, 40)
+          && isString(d.get('description', ''), 0, 600)
+          && isString(d.get('info', ''), 0, 200)
+          && d.get('workout', []) is list
+          && d.get('workout', []).size() <= 20
+          && d.get('featured', false) is bool
+          && d.published is bool
+          && d.get('sortIndex', 0) is int;
+      }
+
+      // Il pubblico vede solo gli eventi pubblicati; l'admin vede anche le bozze.
+      // Nota: le regole non filtrano, valutano. Per questo il sito interroga
+      // Firestore con una query `where published == true` (vedi js/firebase/rest.js):
+      // una lettura non filtrata verrebbe rifiutata in blocco.
+      allow read: if resource.data.published == true || isAdmin();
+
+      allow create, update: if isAdmin() && validEvent();
+      allow delete: if isAdmin();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /leads — richieste dal form di contatto
+     * ---------------------------------------------------------------- */
+    match /leads/{leadId} {
+
+      function validLead() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['name', 'email', 'message', 'source', 'createdAt'])
+          && isString(d.name, 2, 80)
+          && isString(d.email, 5, 120)
+          && d.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+          && isString(d.message, 10, 2000)
+          && isString(d.source, 1, 40)
+          // Timestamp coerente con l'orologio del server: impedisce di
+          // riempire la collection con date arbitrarie, passate o future.
+          && d.createdAt is timestamp
+          && d.createdAt < request.time + duration.value(5, 'm')
+          && d.createdAt > request.time - duration.value(1, 'h');
+      }
+
+      // Chiunque può inviare una richiesta, nessuno può rileggerle:
+      // gli indirizzi email dei clienti non devono essere pubblici.
+      allow create: if validLead();
+      allow read, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * Tutto il resto è chiuso.
+     * ---------------------------------------------------------------- */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

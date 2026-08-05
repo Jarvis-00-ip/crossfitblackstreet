@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pannello admin | CrossFit Black Street</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+</head>
+<body class="admin-body">
+
+  <header class="admin-header">
+    <div class="admin-header-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 9v6M8 6v12M16 6v12M20 9v6M8 12h8" />
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>Black Street</strong>
+          <em>Pannello admin</em>
+        </span>
+      </a>
+
+      <div class="admin-user" id="adminUser" hidden>
+        <span id="adminEmail"></span>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Esci</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-main">
+
+    <!-- Stato: configurazione mancante -->
+    <section class="admin-panel" id="setupView" hidden>
+      <h1 class="admin-title">Firebase non configurato</h1>
+      <p>
+        Per usare il pannello inserisci i dati del progetto in
+        <code>js/firebase/config.js</code>. Li trovi nella Console Firebase, in
+        <em>Impostazioni progetto → Le tue app → App web → SDK setup</em>.
+      </p>
+      <p>La procedura completa è nel <code>README.md</code>, sezione «Backend Firebase».</p>
+      <a class="btn btn-ghost" href="index.html">← Torna al sito</a>
+    </section>
+
+    <!-- Stato: login -->
+    <section class="admin-panel admin-login" id="loginView" hidden>
+      <h1 class="admin-title">Accedi</h1>
+      <p class="admin-desc">Area riservata allo staff del box.</p>
+
+      <form class="contact-form" id="loginForm" novalidate>
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Entra</button>
+        <p class="form-status" id="loginStatus" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <!-- Stato: pannello -->
+    <section class="admin-workspace" id="appView" hidden>
+
+      <nav class="admin-tabs" role="tablist">
+        <button class="admin-tab" id="tabEvents" role="tab" aria-selected="true" aria-controls="panelEvents" type="button">
+          Eventi <span class="count" id="eventsCount">0</span>
+        </button>
+        <button class="admin-tab" id="tabLeads" role="tab" aria-selected="false" aria-controls="panelLeads" type="button">
+          Richieste <span class="count" id="leadsCount">0</span>
+        </button>
+      </nav>
+
+      <!-- ---------- Eventi ---------- -->
+      <div class="admin-tabpanel" id="panelEvents" role="tabpanel" aria-labelledby="tabEvents">
+        <div class="admin-columns">
+
+          <div class="admin-panel">
+            <div class="admin-panel-head">
+              <h2 class="admin-title" id="eventFormTitle">Nuovo evento</h2>
+              <button class="btn btn-ghost btn-sm" id="resetEventBtn" type="button" hidden>Annulla modifica</button>
+            </div>
+
+            <form class="contact-form" id="eventForm" novalidate>
+              <input type="hidden" id="eventId" />
+
+              <div class="field">
+                <label for="eventTitle">Titolo<span aria-hidden="true">*</span></label>
+                <input type="text" id="eventTitle" maxlength="80" required placeholder="APERI MURPH" />
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="eventDate">Data</label>
+                  <input type="text" id="eventDate" maxlength="60" placeholder="Sabato 11 Luglio" />
+                </div>
+                <div class="field">
+                  <label for="eventTime">Orario</label>
+                  <input type="text" id="eventTime" maxlength="40" placeholder="Ore 09:00" />
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="eventBadge">Etichetta</label>
+                <input type="text" id="eventBadge" maxlength="40" placeholder="Con aperitivo finale" />
+              </div>
+
+              <div class="field">
+                <label for="eventDescription">Descrizione</label>
+                <textarea id="eventDescription" rows="3" maxlength="600" placeholder="Murph a team, divisione in heat…"></textarea>
+              </div>
+
+              <div class="field">
+                <label for="eventWorkout">Workout <em class="hint">— una riga per movimento</em></label>
+                <textarea id="eventWorkout" rows="5" placeholder="1,6 km Run&#10;100 Pull up&#10;200 Push up"></textarea>
+              </div>
+
+              <div class="field">
+                <label for="eventInfo">Info</label>
+                <input type="text" id="eventInfo" maxlength="200" placeholder="Prenotazioni in app o al box." />
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="eventSort">Ordine</label>
+                  <input type="number" id="eventSort" value="0" step="1" />
+                </div>
+                <div class="field checks">
+                  <label class="check"><input type="checkbox" id="eventFeatured" /> <span>In evidenza</span></label>
+                  <label class="check"><input type="checkbox" id="eventPublished" checked /> <span>Pubblicato</span></label>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" id="saveEventBtn">Salva evento</button>
+              <p class="form-status" id="eventStatus" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <div class="admin-panel">
+            <h2 class="admin-title">Eventi in bacheca</h2>
+            <p class="admin-desc">Le bozze non pubblicate non sono visibili sul sito.</p>
+            <div class="admin-list" id="eventsList"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ---------- Richieste ---------- -->
+      <div class="admin-tabpanel" id="panelLeads" role="tabpanel" aria-labelledby="tabLeads" hidden>
+        <div class="admin-panel">
+          <h2 class="admin-title">Richieste dal form</h2>
+          <p class="admin-desc">Ordinate dalla più recente. Solo gli admin possono leggerle.</p>
+          <div class="admin-list" id="leadsList"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <p class="admin-error" id="globalError" hidden></p>
+  </main>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

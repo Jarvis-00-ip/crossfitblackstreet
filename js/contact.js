@@ -1,14 +1,22 @@
 /**
- * contact.js — Validazione del form e invio via WhatsApp.
+ * contact.js — Validazione del form, salvataggio del lead e invio via WhatsApp.
  *
- * Il sito è statico (GitHub Pages): non esiste un backend a cui fare POST.
- * Il form valida i campi e apre WhatsApp con il messaggio già composto.
- * Per un invio via email/servizio esterno, sostituire `handleSubmit`
- * con una fetch verso Formspree / Netlify Forms / API propria.
+ * Flusso di un invio valido:
+ *   1. validazione dei campi + controllo honeypot
+ *   2. apertura di WhatsApp col messaggio precompilato
+ *   3. salvataggio del lead su Firestore, in background
+ *
+ * L'ordine non è casuale. `window.open()` deve partire in modo sincrono dentro
+ * l'handler del submit, altrimenti il browser la considera una popup non
+ * richiesta dall'utente e la blocca. Se il salvataggio del lead fosse atteso
+ * prima, il "gesto utente" andrebbe perso e su Safari la finestra non si
+ * aprirebbe. Il salvataggio quindi non blocca mai la conversione: se Firestore
+ * non risponde, l'utente è comunque già su WhatsApp.
  */
 
 import { qs, qsa } from './dom.js';
 import { CONTACTS, whatsappLink } from './data.js';
+import { saveLead } from './firebase/leads-repo.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -48,7 +56,10 @@ export function initContact() {
   if (!form) return;
 
   const status = qs('#formStatus');
-  const inputs = qsa('input, textarea', form);
+
+  // Solo i campi con una regola di validazione: esclude l'honeypot, che non è
+  // un campo utente e non deve finire nel ciclo di validazione.
+  const inputs = qsa('input, textarea', form).filter((input) => RULES[input.name]);
 
   // Rivalida mentre l'utente corregge un campo già segnalato.
   inputs.forEach((input) => {
@@ -65,6 +76,16 @@ export function initContact() {
     status.className = 'form-status';
     status.textContent = '';
 
+    // Honeypot: campo invisibile agli umani, irresistibile per i bot.
+    // Simuliamo il successo senza fare nulla, così il bot non capisce di
+    // essere stato scartato e non riprova con un'altra strategia.
+    if (qs('#website', form)?.value) {
+      status.classList.add('ok');
+      status.textContent = 'Messaggio inviato.';
+      form.reset();
+      return;
+    }
+
     const results = inputs.map((input) => setFieldError(input, RULES[input.name](input.value)));
     if (results.includes(false)) {
       status.classList.add('err');
@@ -76,10 +97,25 @@ export function initContact() {
     const { name, email, message } = Object.fromEntries(new FormData(form));
     const text = `Ciao CrossFit Black Street!\n\nNome: ${name}\nEmail: ${email}\n\n${message}`;
 
+    // 1. WhatsApp per primo: deve restare dentro il gesto utente (vedi sopra).
     window.open(whatsappLink(text), '_blank', 'noopener');
 
     status.classList.add('ok');
     status.textContent = 'Perfetto! Ti abbiamo aperto WhatsApp con il messaggio pronto.';
+
+    // 2. Lead in archivio, senza far aspettare nessuno.
+    saveLead({ name, email, message }).then(({ saved, reason }) => {
+      if (saved) {
+        status.textContent =
+          'Perfetto! Ti abbiamo aperto WhatsApp e registrato la richiesta: ti rispondiamo a breve.';
+      } else if (reason === 'rate-limited') {
+        status.textContent =
+          'Messaggio pronto su WhatsApp. Hai già inviato una richiesta poco fa: ti ricontattiamo noi.';
+      }
+      // 'not-configured' / 'error' → resta il messaggio di successo:
+      // per l'utente la richiesta è comunque partita, su WhatsApp.
+    });
+
     form.reset();
   });
 }
