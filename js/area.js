@@ -21,6 +21,7 @@ import {
 import { whatsappLink, SCHEDULE, CLASS_TYPES } from './data.js';
 import { expandSchedule, asDate } from './session-id.js';
 import { prepareDocument, toDataUrl, humanSize, MAX_BYTES } from './upload.js';
+import { redirectOnce, clearBounce } from './redirect.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 const DAYS_AHEAD = 14;
@@ -157,10 +158,12 @@ function watchAuth({ auth, db, A, S }) {
     if (await isStaff({ db, S, user })) {
       qs('#loginStatus').className = 'form-status ok';
       qs('#loginStatus').textContent = 'Sei dello staff: apertura del pannello…';
-      // replace() e non href: il tasto Indietro non deve riportare qui.
-      window.location.replace('admin.html');
-      return;
+      if (redirectOnce('admin.html')) return;
+      // Rimbalzo evitato: il pannello ci ha appena rimandati qui. Meglio
+      // restare e mostrare l'area soci che innescare un ciclo infinito.
     }
+
+    clearBounce();
 
     // I comandi del certificato si costruiscono una volta sola; a ogni
     // aggiornamento del profilo cambia solo ciò che mostrano.

@@ -27,6 +27,7 @@ import {
 import { SCHEDULE, CLASS_TYPES } from './data.js';
 import { expandSchedule, asDate } from './session-id.js';
 import { toDataUrl, humanSize } from './upload.js';
+import { redirectOnce, clearBounce } from './redirect.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -232,6 +233,20 @@ function watchAuth({ auth, db, A, S }) {
       // Autenticato ma non autorizzato: sono due cose diverse, ed è voluto.
       // Chiunque abbia un account Google può arrivare fin qui; solo un UID
       // presente in /admins supera le rules.
+      //
+      // Chi non è staff è quasi sempre un socio che ha sbagliato indirizzo:
+      // il suo posto è l'area soci, non una schermata con un UID che non gli
+      // serve. Nessun signOut prima di mandarlo là — la sessione Firebase è
+      // condivisa fra le pagine, e disconnetterlo lo costringerebbe a
+      // rifare il login appena arrivato.
+      //
+      // Il riquadro con l'UID resta raggiungibile con `admin.html?staff=1`:
+      // serve solo a creare il primissimo amministratore di un progetto
+      // nuovo, quando ancora non c'è nessuno che possa mandare un invito.
+      const wantsStaffInfo = new URLSearchParams(window.location.search).has('staff');
+
+      if (!wantsStaffInfo && redirectOnce('area.html')) return;
+
       const { email, uid } = user;
       await A.signOut(auth);
       showView('login');
@@ -243,6 +258,9 @@ function watchAuth({ auth, db, A, S }) {
       qs('#uidBox').hidden = false;
       return;
     }
+
+    // Arrivato a destinazione: la guardia anti-rimbalzo può azzerarsi.
+    clearBounce();
 
     qs('#adminEmail').textContent = user.email;
     qs('#adminUser').hidden = false;
