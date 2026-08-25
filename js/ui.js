@@ -2,7 +2,7 @@
  * ui.js — Comportamenti trasversali: header, menu mobile, scrollspy, reveal on scroll.
  */
 
-import { qs, qsa } from './dom.js';
+import { qs, qsa, el } from './dom.js';
 
 /** Header compatto + menu mobile a scomparsa. */
 export function initHeader() {
@@ -90,6 +90,28 @@ export function initReveal() {
 
   observeAll();
   return { refresh: observeAll };
+}
+
+/**
+ * Immagini non ancora caricate → segnaposto invece dell'icona di file rotto.
+ * Il sito viene pubblicato prima che tutte le foto esistano: un'icona rotta
+ * lo fa sembrare abbandonato, un segnaposto dichiarato no.
+ */
+export function initPhotoFallback() {
+  qsa('img[data-photo-fallback]').forEach((img) => {
+    const swap = () => {
+      const frame = img.parentElement;
+      if (!frame) return;
+      frame.classList.add('is-missing');
+      frame.append(el('span', { class: 'media-missing', text: img.dataset.photoFallback }));
+      img.remove();
+    };
+
+    // `complete` con naturalWidth 0 = già fallita prima che il listener
+    // fosse agganciato: succede quando l'immagine è in cache come errore.
+    if (img.complete && img.naturalWidth === 0) swap();
+    else img.addEventListener('error', swap, { once: true });
+  });
 }
 
 /** Anno corrente nel footer. */

@@ -18,7 +18,7 @@ Gym a Genova. Tre pagine, un solo dominio:
 
 | Pagina | A chi serve | Cosa fa |
 |---|---|---|
-| `index.html` | pubblico | vetrina: chi siamo, servizi, palinsesto, eventi, contatti |
+| `index.html` | pubblico | vetrina: chi siamo, servizi, palinsesto, eventi, WOD Senza Respiro, Instagram, contatti |
 | `area.html` | soci | registrazione, certificato medico, prenotazione classi |
 | `admin.html` | staff | eventi, richieste, soci, classi, team |
 
@@ -128,7 +128,27 @@ perché nella pratica quasi sempre si vuole fare entrambe le cose — ma la
 domanda resta, con la possibilità di rispondere no. Non unire i due campi:
 si perderebbe la distinzione senza guadagnare nulla che la domanda non dia già.
 
-### 2.8 Degradazione graduale, sempre
+### 2.8 Instagram: post scelti, non feed automatico
+
+Mostrare «gli ultimi post» richiede la Graph API con account Business e un
+access token da rinnovare ogni 60 giorni — quindi un backend che se ne occupi.
+La Basic Display API, che bastava, è stata dismessa a fine 2024.
+
+L'embed del singolo post (`instagram.com/p/{codice}/embed`) invece non ha
+token né scadenze. Il carosello mostra quindi codici elencati in `data.js`.
+
+Gli iframe si caricano **solo al click**: l'embed profila chi lo vede, e
+caricarlo all'apertura significherebbe inviare i visitatori a Instagram senza
+che l'abbiano chiesto. Vale anche come guadagno di velocità.
+
+### 2.9 Immagini mancanti: segnaposto, mai icona rotta
+
+Il sito viene pubblicato prima che tutte le foto esistano. `initPhotoFallback()`
+in `ui.js` e il gestore in `senza-respiro.js` sostituiscono un'immagine non
+trovata con un riquadro che dice quale file manca. Un'icona di file rotto fa
+sembrare il sito abbandonato.
+
+### 2.10 Degradazione graduale, sempre
 
 Se Firestore non risponde, la bacheca eventi ricade su `js/data.js` e il
 visitatore non se ne accorge. Se `apiKey` è vuota, il sito torna a essere
@@ -157,6 +177,7 @@ js/
   session-id.js    ID e date delle sessioni (condiviso area/admin)
   upload.js        compressione e codifica documenti
   redirect.js      smistamento fra le pagine
+  senza-respiro.js sezione progetto + carosello Instagram
   firebase/
     config.js      ⭐ credenziali, capienze, OWNER_UID
     rest.js        client Firestore senza SDK
@@ -201,6 +222,7 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Smistamento automatico soci ↔ staff, con guardia anti-rimbalzo
 - [x] Approvazione certificato che propone anche l'attivazione del socio
 - [x] Sfondo del hero disegnato in SVG animato, come segnaposto sostituibile
+- [x] Sezione «WOD Senza Respiro» + carosello Instagram a caricamento differito
 
 ### Da fare, in ordine di urgenza
 
@@ -218,6 +240,12 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze)
 - [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile
 - [ ] Font self-hosted (oggi da Google Fonts: l'IP dei visitatori raggiunge Google)
+- [ ] **Foto di `WOD Senza Respiro`**: mancano `assets/img/senza-respiro-1.jpg`,
+      `senza-respiro-2.jpg` e `box.jpg`. Finché non ci sono, la sezione mostra
+      segnaposto con il nome del file atteso
+- [ ] Testo di «WOD Senza Respiro» da confermare con la società, e consenso di
+      Lucia Dimola per nome e condizione di salute (dato particolare, art. 9)
+- [ ] Codici dei post Instagram da mettere in `INSTAGRAM_POSTS` (`data.js`)
 - [ ] Prezzi, FAQ prima prova, sezione coach — i contenuti che convertono
 - [ ] WOD del giorno, per dare un motivo di tornare ogni giorno
 

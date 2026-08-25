@@ -11,6 +11,62 @@ export const CONTACTS = {
   email: 'info@crossfitblackstreet.it',
 };
 
+/**
+ * WOD Senza Respiro — progetto sulla fibrosi cistica.
+ *
+ * ⚠️ Testo da rivedere insieme alla società: qui c'è solo ciò che risulta
+ * dai post pubblici. Date, luogo e finalità vanno confermati prima di
+ * pubblicare, e il nome di Lucia va usato con il suo consenso: uno stato di
+ * salute è un dato particolare (art. 9 GDPR), anche quando la persona ne
+ * parla apertamente sui propri canali.
+ */
+export const SENZA_RESPIRO = {
+  eyebrow: 'Progetto',
+  title: 'WOD Senza Respiro',
+  claim: 'RiminiWellness 2026',
+  lead:
+    'Un WOD portato in gara da chi convive con la fibrosi cistica, per mostrare ' +
+    'che la sala pesi non è un posto riservato a pochi.',
+  body:
+    'Il progetto nasce per dare visibilità a chi si allena nonostante una malattia ' +
+    'respiratoria cronica, e per raccogliere le testimonianze di chi lo fa. ' +
+    'Black Street partecipa e mette a disposizione il box per gli allenamenti.',
+  athlete: {
+    name: 'Lucia Dimola',
+    handle: '@theciagram',
+    url: 'https://www.instagram.com/theciagram/',
+    note: 'Atleta e testimonial del progetto, affetta da fibrosi cistica.',
+  },
+  photos: [
+    {
+      src: 'assets/img/senza-respiro-1.jpg',
+      alt: 'Lucia Dimola spinge un sled carico durante il WOD Senza Respiro',
+      label: 'Il WOD',
+    },
+    {
+      src: 'assets/img/senza-respiro-2.jpg',
+      alt: 'Lucia Dimola in posizione overhead con bilanciere carico',
+      label: 'Le testimonianze',
+    },
+  ],
+};
+
+/**
+ * Post Instagram mostrati nel carosello, per codice.
+ *
+ * Il codice è la parte dell'indirizzo fra `/p/` e la barra finale:
+ *   https://www.instagram.com/p/DK1xYzAbcDe/  →  'DK1xYzAbcDe'
+ * Vanno bene anche i reel (`/reel/...`): il codice si prende allo stesso modo.
+ *
+ * Perché scelti a mano e non "gli ultimi automaticamente": un feed
+ * automatico richiede la Graph API con account Business e un token da
+ * rinnovare ogni 60 giorni, quindi un backend che se ne occupi. L'embed del
+ * singolo post invece non ha scadenze e non richiede nulla.
+ *
+ * Con l'array vuoto la sezione mostra il solo invito a seguire il profilo.
+ */
+export const INSTAGRAM_POSTS = [];
+
 /** Link WhatsApp con messaggio precompilato. */
 export function whatsappLink(text = 'Ciao! Vorrei prenotare la mia PROVA gratuita.') {
   return `https://wa.me/${CONTACTS.whatsappIntl}?text=${encodeURIComponent(text)}`;

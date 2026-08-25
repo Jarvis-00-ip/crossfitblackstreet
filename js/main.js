@@ -7,7 +7,8 @@ import { renderServices, renderPartner } from './services.js';
 import { renderEvents } from './events.js';
 import { createSchedule } from './schedule.js';
 import { initContact } from './contact.js';
-import { initHeader, initScrollSpy, initReveal, initYear } from './ui.js';
+import { initHeader, initScrollSpy, initReveal, initYear, initPhotoFallback } from './ui.js';
+import { renderSenzaRespiro, renderInstagram } from './senza-respiro.js';
 import { loadEvents } from './firebase/events-repo.js';
 
 function boot() {
@@ -15,6 +16,8 @@ function boot() {
   renderServices(qs('#servicesGrid'));
   renderPartner(qs('#partnerCard'));
   renderEvents(qs('#eventsGrid')); // primo paint immediato da data.js
+  renderSenzaRespiro(qs('#senzaRespiro'));
+  renderInstagram(qs('#instagramFeed'));
 
   const scheduleView = qs('#scheduleView');
   if (scheduleView) {
@@ -33,6 +36,7 @@ function boot() {
   initHeader();
   initScrollSpy();
   initYear();
+  initPhotoFallback();
   const reveal = initReveal(); // include i nodi appena generati
   reveal.refresh();
 

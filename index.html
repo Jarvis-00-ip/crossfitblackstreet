@@ -42,6 +42,7 @@
           <li><a href="#services" class="nav-link">Servizi</a></li>
           <li><a href="#schedule" class="nav-link">Orari</a></li>
           <li><a href="#events" class="nav-link">Eventi</a></li>
+          <li><a href="#senza-respiro" class="nav-link">Senza Respiro</a></li>
           <li><a href="#contact" class="nav-link">Contatti</a></li>
           <li><a href="area.html" class="nav-link nav-link-area">Area soci</a></li>
         </ul>
@@ -231,9 +232,12 @@
         </div>
 
         <div class="about-media reveal" data-reveal-delay="160">
-          <div class="media-placeholder tall">
-            <span>FOTO DEL BOX</span>
-          </div>
+          <!-- Se il file manca, js/ui.js sostituisce l'immagine con un
+               segnaposto: l'icona di file rotto fa sembrare il sito abbandonato. -->
+          <figure class="media-frame tall">
+            <img src="assets/img/box.jpg" alt="L'area attrezzi del box con i vogatori Concept2 e le bike"
+                 data-photo-fallback="FOTO DEL BOX" loading="lazy" />
+          </figure>
           <div class="media-tag">
             <strong>Black Street</strong>
             <span>Rig, sled track &amp; open area</span>
@@ -313,6 +317,24 @@
         <div class="events-grid" id="eventsGrid">
           <!-- generato da js/events.js -->
         </div>
+      </div>
+    </section>
+
+    <!-- ======================= WOD SENZA RESPIRO ======================= -->
+    <section class="section" id="senza-respiro">
+      <div class="container sr-grid" id="senzaRespiro">
+        <!-- generato da js/senza-respiro.js -->
+      </div>
+    </section>
+
+    <!-- ======================= INSTAGRAM ======================= -->
+    <section class="section section-alt" id="instagram">
+      <div class="container">
+        <header class="section-head">
+          <p class="eyebrow reveal">Instagram</p>
+          <h2 class="section-title reveal" data-reveal-delay="60">Dal <span class="accent">box</span></h2>
+        </header>
+        <div id="instagramFeed"><!-- generato da js/senza-respiro.js --></div>
       </div>
     </section>
 
@@ -446,6 +468,7 @@
         <a href="#services">Servizi</a>
         <a href="#schedule">Orari</a>
         <a href="#events">Eventi</a>
+        <a href="#senza-respiro">Senza Respiro</a>
         <a href="#contact">Contatti</a>
         <a href="area.html">Area soci</a>
       </nav>
