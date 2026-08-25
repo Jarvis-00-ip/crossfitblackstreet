@@ -180,6 +180,10 @@
   overflow-wrap: anywhere;
 }
 
+/* I badge sono generati senza spazi bianchi fra loro: senza questo
+   contenitore si toccherebbero. */
+.pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
 .pill {
   display: inline-block;
   font-size: 0.68rem;
@@ -314,3 +318,23 @@
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* ---------- Team ---------- */
+.admin-subtitle {
+  font-size: 1.15rem;
+  margin: 26px 0 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  color: #cfcfd8;
+}
+
+.owner-note {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--hyrox);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.owner-note strong { color: var(--hyrox); }

@@ -109,6 +109,9 @@
         <button class="admin-tab" id="tabLeads" role="tab" aria-selected="false" aria-controls="panelLeads" type="button">
           Richieste <span class="count" id="leadsCount">0</span>
         </button>
+        <button class="admin-tab" id="tabTeam" role="tab" aria-selected="false" aria-controls="panelTeam" type="button">
+          Team <span class="count" id="teamCount">0</span>
+        </button>
       </nav>
 
       <!-- ---------- Eventi ---------- -->
@@ -191,6 +194,46 @@
           <h2 class="admin-title">Richieste dal form</h2>
           <p class="admin-desc">Ordinate dalla più recente. Solo gli admin possono leggerle.</p>
           <div class="admin-list" id="leadsList"></div>
+        </div>
+      </div>
+
+      <!-- ---------- Team ---------- -->
+      <div class="admin-tabpanel" id="panelTeam" role="tabpanel" aria-labelledby="tabTeam" hidden>
+        <div class="admin-columns">
+
+          <div class="admin-panel">
+            <h2 class="admin-title">Invita un collaboratore</h2>
+            <p class="admin-desc">
+              Inserisci l'indirizzo Gmail con cui accederà. Riceverà i permessi al primo
+              accesso con Google: l'invito si attiva da solo, non serve altro da parte tua.
+            </p>
+
+            <form class="contact-form" id="inviteForm" novalidate>
+              <div class="field">
+                <label for="inviteEmail">Email<span aria-hidden="true">*</span></label>
+                <input type="email" id="inviteEmail" maxlength="120" required
+                       autocomplete="off" placeholder="coach@gmail.com" />
+                <p class="field-error" data-error-for="inviteEmail"></p>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block" id="inviteBtn">Invia invito</button>
+              <p class="form-status" id="inviteStatus" role="status" aria-live="polite"></p>
+            </form>
+
+            <div class="owner-note" id="ownerOnlyNote" hidden>
+              <strong>Solo il proprietario</strong> può invitare o rimuovere collaboratori.
+              Tu puoi consultare il team.
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <h2 class="admin-title">Team</h2>
+            <p class="admin-desc">Chi ha accesso al pannello, e chi è stato invitato ma non è ancora entrato.</p>
+            <div class="admin-list" id="teamList"></div>
+
+            <h3 class="admin-subtitle">Inviti in attesa</h3>
+            <div class="admin-list" id="invitesList"></div>
+          </div>
+
         </div>
       </div>
 

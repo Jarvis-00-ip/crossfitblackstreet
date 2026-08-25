@@ -260,10 +260,59 @@ con **Pubblicato** attivo: comparirà nella bacheca del sito.
 dall'admin). Nessuno può rileggerli tranne gli admin: gli indirizzi dei clienti non sono
 pubblici.
 
-`admins/{uid}` — la sola esistenza del documento concede i privilegi. Scrittura vietata a
-tutti, admin compresi: un amministratore si aggiunge o si revoca solo dalla console. Per
-togliere l'accesso a qualcuno basta eliminare il suo documento: ha effetto immediato,
-anche a sessione aperta, perché sono le rules a rivalutarlo a ogni richiesta.
+`admins/{uid}` — `email`, `createdAt`. La sola esistenza del documento concede i
+privilegi. Nasce in due modi: creato a mano dalla console (il primo, il proprietario)
+oppure auto-creato da chi accetta un invito. Mai modificabile dopo la creazione.
+
+`invites/{email}` — `email`, `invitedBy`, `createdAt`. **L'ID del documento è l'email
+invitata**, in minuscolo: non è un vezzo, è ciò che permette alla regola di `/admins` di
+ritrovarlo con `exists()`. Le Security Rules non sanno fare query, sanno solo controllare
+se un percorso esiste.
+
+### 7.3.1 Team e inviti
+
+Le regole ragionano per **UID**, ma un UID non esiste finché la persona non fa il primo
+accesso. Invitare per email richiede quindi un giro in due tempi:
+
+1. il proprietario crea `invites/coach@gmail.com` dalla scheda **Team**
+2. il collaboratore accede con Google usando quell'indirizzo
+3. il pannello prova a creare `admins/{suo-uid}`; le regole verificano che esista un
+   invito intestato alla sua **email verificata** e lasciano passare
+4. l'invito viene consumato — vale una volta sola, così un accesso revocato non può
+   essere riottenuto rientrando
+
+Il punto 3 è anche il modo in cui il pannello *scopre* se esiste un invito: prova a
+scrivere e guarda se le regole rifiutano. Non c'è un controllo lato client di cui fidarsi.
+
+**Perché `email_verified` è obbligatorio.** Senza quel controllo, chiunque conosca
+l'indirizzo di un invitato potrebbe registrarsi con email/password usando quel dominio e
+rubargli l'invito senza avere accesso alla casella. Google verifica sempre l'email; un
+account email/password no, finché non conferma il messaggio.
+
+### 7.3.2 Il proprietario è inamovibile
+
+L'UID del proprietario è **scritto dentro `firestore.rules`**, nella funzione
+`ownerUid()`. Non è un campo del database, quindi nessuna scrittura può cambiarlo:
+
+| Azione | Proprietario | Altri admin |
+|---|---|---|
+| Gestire eventi e richieste | ✅ | ✅ |
+| Invitare un collaboratore | ✅ | ❌ |
+| Revocare un accesso | ✅ | ❌ |
+| Essere revocato | **❌ mai** | ✅ dal proprietario |
+
+La riga che lo garantisce è `allow delete: if isOwner() && uid != ownerUid();` — il
+proprietario non può cancellare nemmeno sé stesso. Anche se l'account di un collaboratore
+venisse compromesso, il massimo danno possibile è sugli eventi e sulle richieste: il
+controllo del pannello non si perde.
+
+Una revoca ha **effetto immediato**, anche a sessione aperta: le rules si rivalutano a
+ogni richiesta, e il pannello se ne accorge dal listener sul team e chiude la sessione da
+solo.
+
+> **Per cambiare proprietario** servono due modifiche allineate: `ownerUid()` in
+> `firestore.rules` (quella che conta) e `OWNER_UID` in `js/firebase/config.js` (quella
+> che serve solo a mostrare i comandi giusti). Se divergono, l'interfaccia mente.
 
 ### 7.4 Antispam
 

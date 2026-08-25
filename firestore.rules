@@ -17,12 +17,39 @@ service cloud.firestore {
      * Helper
      * ---------------------------------------------------------------- */
 
+    // UID del proprietario. È scritto qui dentro di proposito: nessun documento
+    // di database può cambiarlo, quindi nessun admin — per quanto malintenzionato
+    // o compromesso — può rimuovere il proprietario o prenderne il posto.
+    // Per cambiare proprietario si modifica questa riga e si ripubblicano le regole.
+    // Deve restare allineato a OWNER_UID in js/firebase/config.js.
+    function ownerUid() {
+      return 'qWsn00kgiQb8ZbnSYOqcP6XvtFt2';
+    }
+
+    function isOwner() {
+      return request.auth != null && request.auth.uid == ownerUid();
+    }
+
     // È admin chi è autenticato E ha un documento in /admins con il proprio UID.
-    // Il documento si crea a mano dalla console: così creare un account non
-    // basta per ottenere privilegi, serve un gesto esplicito del proprietario.
+    // Quel documento nasce in due modi: creato a mano dalla console (il primo,
+    // il proprietario), oppure auto-creato da chi accetta un invito valido.
     function isAdmin() {
       return request.auth != null
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Email verificata dal provider. Google la verifica sempre; un account
+    // email/password no, finché non conferma il messaggio ricevuto.
+    // Senza questo controllo si potrebbe registrare un account con l'indirizzo
+    // di un invitato, senza avere accesso alla sua casella, e rubargli l'invito.
+    function verifiedEmail() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
     }
 
     function isString(value, minLen, maxLen) {
@@ -33,11 +60,55 @@ service cloud.firestore {
      * /admins — elenco degli amministratori
      * ---------------------------------------------------------------- */
     match /admins/{uid} {
-      // Ognuno può verificare solo il proprio stato (serve al pannello admin).
-      allow get: if request.auth != null && request.auth.uid == uid;
-      allow list: if false;
-      // Nessuno si promuove da solo: si aggiunge un admin dalla console.
-      allow write: if false;
+      // Ognuno vede il proprio stato; gli admin vedono l'elenco completo del team.
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+
+      // Accettazione di un invito: l'utente crea il documento SOLO per sé stesso
+      // e solo se esiste un invito intestato alla sua email verificata.
+      // Non esiste alcun percorso per crearlo a nome di qualcun altro.
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && verifiedEmail()
+        && exists(/databases/$(database)/documents/invites/$(myEmail()))
+        && request.resource.data.keys().hasOnly(['email', 'createdAt'])
+        && request.resource.data.email == myEmail()
+        && request.resource.data.createdAt is timestamp;
+
+      // Nessuna modifica dopo la creazione: non c'è nulla di modificabile che
+      // non sia un tentativo di scalata di privilegi.
+      allow update: if false;
+
+      // Solo il proprietario revoca un accesso, e mai il proprio.
+      // `uid != ownerUid()` è la riga che rende il proprietario inamovibile.
+      allow delete: if isOwner() && uid != ownerUid();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /invites — inviti in attesa, indicizzati per email
+     * ---------------------------------------------------------------- *
+     * L'ID del documento È l'email invitata, in minuscolo. Serve perché la
+     * regola di /admins possa cercarla con exists() in un colpo solo: le
+     * regole non sanno fare query, sanno solo controllare se un percorso
+     * esiste.
+     */
+    match /invites/{email} {
+      allow read: if isAdmin();
+
+      allow create: if isOwner()
+        && request.resource.data.keys().hasOnly(['email', 'invitedBy', 'createdAt'])
+        // L'ID del documento deve coincidere con il campo email, altrimenti
+        // l'invito sarebbe irraggiungibile dal controllo di /admins.
+        && request.resource.data.email == email
+        && isString(email, 5, 120)
+        && email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && isString(request.resource.data.invitedBy, 1, 120)
+        && request.resource.data.createdAt is timestamp;
+
+      allow update: if false;
+
+      // Il proprietario revoca un invito; l'invitato lo consuma accettandolo.
+      allow delete: if isOwner()
+        || (verifiedEmail() && myEmail() == email);
     }
 
     /* ---------------------------------------------------------------- *

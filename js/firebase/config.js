@@ -39,7 +39,22 @@ export const COLLECTIONS = {
   events: 'events',
   leads: 'leads',
   admins: 'admins',
+  invites: 'invites',
 };
+
+/**
+ * UID del proprietario. Serve solo all'interfaccia, per mostrare chi è
+ * l'owner e per nascondere i comandi che non potrebbe usare comunque.
+ *
+ * ⚠️ La regola vera è la stessa costante dentro `firestore.rules`, funzione
+ * `ownerUid()`: quella non è aggirabile, questa sì. Se cambi proprietario
+ * devi aggiornare ENTRAMBE, altrimenti l'interfaccia mente.
+ *
+ * Non è un dato sensibile: identifica un account, non concede nulla.
+ */
+export const OWNER_UID = 'qWsn00kgiQb8ZbnSYOqcP6XvtFt2';
+
+export const isOwner = (uid) => uid === OWNER_UID;
 
 /** true quando la configurazione è stata compilata. */
 export function isConfigured() {

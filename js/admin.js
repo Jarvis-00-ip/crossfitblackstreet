@@ -8,6 +8,7 @@
  *  - login staff con Google oppure email + password
  *  - CRUD degli eventi in bacheca, in tempo reale
  *  - consultazione delle richieste arrivate dal form di contatto
+ *  - gestione del team: inviti per email e revoca degli accessi
  *
  * Nota sull'autorizzazione: autenticarsi non significa essere autorizzati.
  * Con il login Google chiunque abbia un account può completare l'accesso; per
@@ -18,7 +19,7 @@
  */
 
 import { qs, el } from './dom.js';
-import { FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured } from './firebase/config.js';
+import { FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured, isOwner } from './firebase/config.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -208,6 +209,14 @@ function watchAuth({ auth, db, A, S }) {
       authorized = false;
     }
 
+    // Non è ancora admin: potrebbe però avere un invito in attesa intestato
+    // alla sua email. Provare a crearsi il documento è anche il modo più
+    // affidabile di verificarlo: se l'invito non esiste sono le regole a
+    // rifiutare, e nessuno può fingere il contrario dal client.
+    if (!authorized) {
+      authorized = await claimInvite({ db, S, user });
+    }
+
     if (!authorized) {
       // Autenticato ma non autorizzato: sono due cose diverse, ed è voluto.
       // Chiunque abbia un account Google può arrivare fin qui; solo un UID
@@ -228,7 +237,11 @@ function watchAuth({ auth, db, A, S }) {
     qs('#adminUser').hidden = false;
     showView('app');
 
-    unsubscribers = [initEvents({ db, S }), initLeads({ db, S })];
+    unsubscribers = [
+      initEvents({ db, S }),
+      initLeads({ db, S }),
+      initTeam({ db, S, A, auth, user }),
+    ];
   });
 }
 
@@ -372,7 +385,7 @@ function initEvents({ db, S }) {
     return el('article', { class: classes }, [
       el('div', { class: 'admin-row-head' }, [
         el('h3', { class: 'admin-row-title', text: event.title }),
-        el('div', {}, [
+        el('div', { class: 'pill-row' }, [
           event.featured ? el('span', { class: 'pill on', text: 'In evidenza' }) : null,
           el('span', {
             class: `pill${event.published ? '' : ' warn'}`,
@@ -489,6 +502,222 @@ function initLeads({ db, S }) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Inviti e team
+ * ------------------------------------------------------------------ */
+
+/**
+ * Tenta di trasformare un invito in accesso effettivo.
+ * Fallisce silenziosamente se l'invito non esiste: è il caso normale per
+ * chiunque capiti sulla pagina senza essere stato invitato.
+ * @returns {Promise<boolean>} true se l'accesso è stato concesso
+ */
+async function claimInvite({ db, S, user }) {
+  const email = (user.email || '').toLowerCase();
+  if (!email) return false;
+
+  try {
+    await S.setDoc(S.doc(db, COLLECTIONS.admins, user.uid), {
+      email,
+      createdAt: S.serverTimestamp(),
+    });
+  } catch {
+    return false; // nessun invito per questa email, o email non verificata
+  }
+
+  // Un invito vale una volta sola: consumarlo evita che un accesso revocato
+  // possa essere riottenuto semplicemente rientrando.
+  try {
+    await S.deleteDoc(S.doc(db, COLLECTIONS.invites, email));
+  } catch {
+    /* l'accesso è già stato concesso: un invito residuo non lo compromette */
+  }
+
+  return true;
+}
+
+function initTeam({ db, S, A, auth, user }) {
+  const owner = isOwner(user.uid);
+  const teamList = qs('#teamList');
+  const invitesList = qs('#invitesList');
+  const form = qs('#inviteForm');
+  const status = qs('#inviteStatus');
+  const button = qs('#inviteBtn');
+  const error = qs('[data-error-for="inviteEmail"]');
+
+  // Chi non è proprietario vede il team ma non i comandi: le regole lo
+  // bloccherebbero comunque, tanto vale non mostrargli pulsanti inutili.
+  form.hidden = !owner;
+  qs('#ownerOnlyNote').hidden = owner;
+
+  /* ---------- invio di un invito ---------- */
+
+  if (owner) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = qs('#inviteEmail');
+      const email = input.value.trim().toLowerCase();
+
+      error.textContent = '';
+      status.className = 'form-status';
+      status.textContent = '';
+
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) {
+        error.textContent = 'Inserisci un indirizzo email valido.';
+        input.focus();
+        return;
+      }
+
+      button.disabled = true;
+      status.textContent = 'Invio…';
+
+      try {
+        // L'ID del documento È l'email: è così che le regole di /admins
+        // ritrovano l'invito con exists() al primo accesso dell'invitato.
+        await S.setDoc(S.doc(db, COLLECTIONS.invites, email), {
+          email,
+          invitedBy: user.email || user.uid,
+          createdAt: S.serverTimestamp(),
+        });
+        form.reset();
+        status.className = 'form-status ok';
+        status.textContent = `Invito creato per ${email}. Avrà accesso al primo login con Google.`;
+      } catch (err) {
+        status.className = 'form-status err';
+        status.textContent = `Invito non riuscito: ${err.message}`;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  /* ---------- elenco del team ---------- */
+
+  async function revokeAdmin(admin) {
+    if (!window.confirm(`Revocare l'accesso a ${admin.email}?`)) return;
+    try {
+      await S.deleteDoc(S.doc(db, COLLECTIONS.admins, admin.id));
+      // Elimina anche un eventuale invito residuo, altrimenti la persona
+      // rientrerebbe da sola al prossimo accesso.
+      if (admin.email) {
+        await S.deleteDoc(S.doc(db, COLLECTIONS.invites, admin.email)).catch(() => {});
+      }
+    } catch (err) {
+      showError(`Revoca non riuscita: ${err.message}`);
+    }
+  }
+
+  async function revokeInvite(invite) {
+    if (!window.confirm(`Annullare l'invito a ${invite.id}?`)) return;
+    try {
+      await S.deleteDoc(S.doc(db, COLLECTIONS.invites, invite.id));
+    } catch (err) {
+      showError(`Annullamento non riuscito: ${err.message}`);
+    }
+  }
+
+  function adminRow(admin) {
+    const isThisOwner = isOwner(admin.id);
+    const isMe = admin.id === user.uid;
+
+    return el('article', { class: `admin-row${isThisOwner ? ' is-featured' : ''}` }, [
+      el('div', { class: 'admin-row-head' }, [
+        el('h3', { class: 'admin-row-title', text: admin.email || admin.id }),
+        el('div', { class: 'pill-row' }, [
+          isThisOwner ? el('span', { class: 'pill on', text: 'Proprietario' }) : null,
+          isMe ? el('span', { class: 'pill', text: 'Tu' }) : null,
+        ]),
+      ]),
+      el('p', {
+        class: 'admin-row-meta',
+        text: isThisOwner
+          ? 'Accesso permanente: non revocabile da nessuno.'
+          : `Accesso attivo${admin.createdAt?.toDate ? ` dal ${dateFmt.format(admin.createdAt.toDate())}` : ''}.`,
+      }),
+      owner && !isThisOwner
+        ? el('div', { class: 'admin-row-actions' }, [
+            el('button', {
+              class: 'mini-btn danger',
+              type: 'button',
+              text: 'Revoca accesso',
+              onClick: () => revokeAdmin(admin),
+            }),
+          ])
+        : null,
+    ]);
+  }
+
+  function inviteRow(invite) {
+    return el('article', { class: 'admin-row is-new' }, [
+      el('div', { class: 'admin-row-head' }, [
+        el('h3', { class: 'admin-row-title', text: invite.id }),
+        el('span', { class: 'pill warn', text: 'In attesa' }),
+      ]),
+      el('p', {
+        class: 'admin-row-meta',
+        text: `Invitato da ${invite.invitedBy || '—'}${
+          invite.createdAt?.toDate ? ` il ${dateFmt.format(invite.createdAt.toDate())}` : ''
+        }`,
+      }),
+      owner
+        ? el('div', { class: 'admin-row-actions' }, [
+            el('button', {
+              class: 'mini-btn danger',
+              type: 'button',
+              text: 'Annulla invito',
+              onClick: () => revokeInvite(invite),
+            }),
+          ])
+        : null,
+    ]);
+  }
+
+  const stopAdmins = S.onSnapshot(
+    S.collection(db, COLLECTIONS.admins),
+    (snapshot) => {
+      const admins = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        // Il proprietario sempre in cima.
+        .sort((a, b) => Number(isOwner(b.id)) - Number(isOwner(a.id)));
+
+      // Se il proprio accesso è stato revocato, uscire subito è più onesto che
+      // lasciare aperto un pannello che fallirà a ogni click.
+      //
+      // Ma solo su dati confermati dal server: Firestore può consegnare uno
+      // snapshot dalla cache, anche vuoto, prima di aver risposto davvero.
+      // Fidarsi di quello significherebbe espellere un admin legittimo per il
+      // solo fatto di avere una connessione lenta. In dubbio non si esce.
+      const fromServer = snapshot.metadata?.fromCache === false;
+      if (fromServer && !admins.some((a) => a.id === user.uid)) {
+        A.signOut(auth);
+        return;
+      }
+
+      qs('#teamCount').textContent = String(admins.length);
+      teamList.replaceChildren(...admins.map(adminRow));
+    },
+    (err) => showError(`Lettura team non riuscita: ${err.message}`)
+  );
+
+  const stopInvites = S.onSnapshot(
+    S.collection(db, COLLECTIONS.invites),
+    (snapshot) => {
+      const invites = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      invitesList.replaceChildren(
+        ...(invites.length
+          ? invites.map(inviteRow)
+          : [el('p', { class: 'admin-empty', text: 'Nessun invito in attesa.' })])
+      );
+    },
+    (err) => showError(`Lettura inviti non riuscita: ${err.message}`)
+  );
+
+  return () => {
+    stopAdmins();
+    stopInvites();
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Tabs
  * ------------------------------------------------------------------ */
 
@@ -496,6 +725,7 @@ function initTabs() {
   const tabs = [
     { tab: qs('#tabEvents'), panel: qs('#panelEvents') },
     { tab: qs('#tabLeads'), panel: qs('#panelLeads') },
+    { tab: qs('#tabTeam'), panel: qs('#panelTeam') },
   ];
 
   tabs.forEach(({ tab }, index) => {
