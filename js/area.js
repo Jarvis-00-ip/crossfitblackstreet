@@ -128,14 +128,18 @@ function initLogin({ auth, A }) {
 
 function watchAuth({ auth, db, A, S }) {
   let stopBookings = null;
+  let stopProfile = null;
+  let certCards = null;
 
-  const stop = () => {
+  const stopAll = () => {
     if (stopBookings) stopBookings();
+    if (stopProfile) stopProfile();
     stopBookings = null;
+    stopProfile = null;
   };
 
   A.onAuthStateChanged(auth, async (user) => {
-    stop();
+    stopAll();
     showError('');
 
     if (!user) {
@@ -147,31 +151,62 @@ function watchAuth({ auth, db, A, S }) {
     qs('#memberEmail').textContent = user.email || '';
     qs('#memberBar').hidden = false;
 
-    let profile = null;
-    try {
-      const snap = await S.getDoc(S.doc(db, COLLECTIONS.users, user.uid));
-      profile = snap.exists() ? snap.data() : null;
-    } catch (error) {
-      showError(`Profilo non leggibile: ${error.message}`);
+    // Lo staff non è un socio: chi è in /admins non ha nulla da fare qui e
+    // finirebbe nel flusso di registrazione, certificato medico compreso.
+    // Meglio mandarlo dove sta il suo lavoro.
+    if (await isStaff({ db, S, user })) {
+      qs('#loginStatus').className = 'form-status ok';
+      qs('#loginStatus').textContent = 'Sei dello staff: apertura del pannello…';
+      // replace() e non href: il tasto Indietro non deve riportare qui.
+      window.location.replace('admin.html');
       return;
     }
 
-    if (!profile) {
-      initRegister({ db, S, user });
-      showView('register');
-      return;
+    // I comandi del certificato si costruiscono una volta sola; a ogni
+    // aggiornamento del profilo cambia solo ciò che mostrano.
+    if (!certCards) {
+      certCards = qsa('[data-cert-mount]').map((mount) => createCertificateCard({ db, S, user, mount }));
     }
 
-    // Il riquadro del certificato compare sia in attesa che ad accesso
-    // attivo: serve al primo caricamento e a ogni rinnovo alla scadenza.
-    qsa('[data-cert-mount]').forEach((mount) => initCertificate({ db, S, user, profile, mount }));
+    // Listener e non lettura singola: quando approvi un socio, la sua pagina
+    // passa da "in attesa" alle prenotazioni senza che debba ricaricare, e
+    // l'esito della verifica del certificato compare da solo.
+    stopProfile = S.onSnapshot(
+      S.doc(db, COLLECTIONS.users, user.uid),
+      (snap) => {
+        const profile = snap.exists() ? snap.data() : null;
 
-    if (profile.status === 'blocked') return showView('blocked');
-    if (profile.status !== 'active') return showView('pending');
+        if (!profile) {
+          initRegister({ db, S, user });
+          showView('register');
+          return;
+        }
 
-    showView('booking');
-    stopBookings = initBooking({ db, S, user, profile });
+        certCards.forEach((card) => card.update(profile));
+
+        if (profile.status === 'blocked') return showView('blocked');
+        if (profile.status !== 'active') return showView('pending');
+
+        showView('booking');
+        if (!stopBookings) stopBookings = initBooking({ db, S, user, profile });
+      },
+      (error) => showError(`Profilo non leggibile: ${error.message}`)
+    );
   });
+}
+
+/**
+ * L'utente fa parte dello staff?
+ * In caso di errore risponde "no": un problema di lettura non deve impedire
+ * a un socio di usare la propria area.
+ */
+async function isStaff({ db, S, user }) {
+  try {
+    const snap = await S.getDoc(S.doc(db, COLLECTIONS.admins, user.uid));
+    return snap.exists();
+  } catch {
+    return false;
+  }
 }
 
 function initRegister({ db, S, user }) {
@@ -238,7 +273,15 @@ function certPillClass(status) {
   return 'pill';
 }
 
-function initCertificate({ db, S, user, profile, mount }) {
+/**
+ * Costruisce i comandi del certificato una volta sola e restituisce un
+ * `update(profile)` da richiamare a ogni cambiamento.
+ *
+ * La separazione serve: il profilo è sotto listener e si aggiorna spesso, ma
+ * riagganciare i gestori a ogni aggiornamento significherebbe inviare il
+ * documento due, tre, dieci volte con un solo click.
+ */
+function createCertificateCard({ db, S, user, mount }) {
   const input = mount.querySelector('[data-cert-input]');
   const label = mount.querySelector('[data-cert-label]');
   const sendBtn = mount.querySelector('[data-cert-send]');
@@ -247,38 +290,39 @@ function initCertificate({ db, S, user, profile, mount }) {
   const note = mount.querySelector('[data-cert-note]');
   const preview = mount.querySelector('[data-cert-preview]');
 
-  const status = profile.certStatus || 'none';
-  statusPill.textContent = CERT_LABEL[status] || status;
-  statusPill.className = certPillClass(status);
-
-  note.textContent = {
-    none: `Carica il certificato di idoneità sportiva: foto o PDF, massimo ${humanSize(MAX_BYTES)}. Le foto vengono ridotte in automatico.`,
-    pending: 'Documento ricevuto. Lo staff lo verifica appena possibile.',
-    approved: profile.certExpiresAt
-      ? `Approvato, valido fino al ${dayFmt.format(asDate(profile.certExpiresAt))}.`
-      : 'Approvato.',
-    rejected: profile.certNote
-      ? `Documento respinto: ${profile.certNote} — caricane uno nuovo.`
-      : 'Documento respinto: caricane uno nuovo.',
-  }[status] || '';
+  label.textContent = `Scegli foto o PDF · max ${humanSize(MAX_BYTES)}`;
 
   let prepared = null;
 
+  /** Riquadro di esito, non una riga di testo che passa inosservata. */
+  function say(kind, message) {
+    feedback.className = `cert-feedback is-${kind}`;
+    feedback.textContent = message;
+    feedback.hidden = !message;
+  }
+
+  function resetPicker() {
+    input.value = '';
+    label.textContent = `Scegli foto o PDF · max ${humanSize(MAX_BYTES)}`;
+    preview.hidden = true;
+    prepared = null;
+    sendBtn.disabled = true;
+  }
+
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
-    feedback.className = 'form-status';
-    feedback.textContent = '';
     preview.hidden = true;
     prepared = null;
     sendBtn.disabled = true;
 
     if (!file) {
-      label.textContent = 'Scegli foto o PDF';
+      resetPicker();
+      say('', '');
       return;
     }
 
     label.textContent = file.name;
-    feedback.textContent = 'Preparazione del file…';
+    say('busy', 'Preparazione del file…');
 
     try {
       prepared = await prepareDocument(file);
@@ -292,20 +336,24 @@ function initCertificate({ db, S, user, profile, mount }) {
         preview.hidden = false;
       }
 
-      feedback.className = 'form-status ok';
-      feedback.textContent = `Pronto da inviare (${humanSize(prepared.size)}).`;
+      const ridotto = prepared.size < file.size
+        ? ` (ridotto da ${humanSize(file.size)} a ${humanSize(prepared.size)})`
+        : '';
+      say('ok', `Documento pronto${ridotto}. Premi «Carica documento» per inviarlo.`);
       sendBtn.disabled = false;
     } catch (error) {
-      feedback.className = 'form-status err';
-      feedback.textContent = error.message;
+      say('err', error.message);
     }
   });
 
   sendBtn.addEventListener('click', async () => {
-    if (!prepared) return;
+    if (!prepared) {
+      say('err', 'Scegli prima un file da caricare.');
+      return;
+    }
+
     sendBtn.disabled = true;
-    feedback.className = 'form-status';
-    feedback.textContent = 'Invio…';
+    say('busy', 'Invio in corso…');
 
     try {
       // Documento e stato viaggiano insieme: se andassero separati, il
@@ -327,20 +375,40 @@ function initCertificate({ db, S, user, profile, mount }) {
       });
       await batch.commit();
 
-      feedback.className = 'form-status ok';
-      feedback.textContent = 'Documento inviato. Lo staff lo verifica appena possibile.';
-      statusPill.textContent = CERT_LABEL.pending;
-      statusPill.className = certPillClass('pending');
-      note.textContent = 'Documento ricevuto. Lo staff lo verifica appena possibile.';
-      input.value = '';
-      label.textContent = 'Scegli foto o PDF';
-      prepared = null;
+      resetPicker();
+      say('ok', '✓ Documento caricato. Lo staff lo verifica appena possibile.');
+      // Il riquadro può stare sotto la piega su schermo piccolo.
+      feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (error) {
-      feedback.className = 'form-status err';
-      feedback.textContent = `Invio non riuscito: ${error.message}`;
+      // Il caso di gran lunga più frequente al primo avvio: regole non ancora
+      // pubblicate. Dirlo esplicitamente evita mezz'ora di ricerche a vuoto.
+      const denied = /permission|insufficient/i.test(error.message || '');
+      say('err', denied
+        ? 'Caricamento rifiutato dal server: le regole di sicurezza non sono ancora pubblicate. Segnalalo allo staff.'
+        : `Caricamento non riuscito: ${error.message}`);
       sendBtn.disabled = false;
     }
   });
+
+  return {
+    update(profile) {
+      const status = profile.certStatus || 'none';
+      statusPill.textContent = CERT_LABEL[status] || status;
+      statusPill.className = certPillClass(status);
+
+      const expires = asDate(profile.certExpiresAt);
+      note.textContent = {
+        none: `Carica il certificato di idoneità sportiva. Foto o PDF, massimo ${humanSize(MAX_BYTES)}: le foto vengono ridotte in automatico.`,
+        pending: 'Documento ricevuto. Lo staff lo verifica appena possibile.',
+        approved: expires
+          ? `Approvato, valido fino al ${expires.toLocaleDateString('it-IT')}.`
+          : 'Approvato.',
+        rejected: profile.certNote
+          ? `Documento respinto: ${profile.certNote}. Caricane uno nuovo.`
+          : 'Documento respinto: caricane uno nuovo.',
+      }[status] || '';
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ *

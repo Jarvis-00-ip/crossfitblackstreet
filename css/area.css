@@ -120,3 +120,31 @@
   background: #000;
 }
 .cert-preview img { width: 100%; max-height: 320px; object-fit: contain; }
+
+/* Esito del caricamento: un riquadro colorato, non una riga di testo che
+   passa inosservata proprio quando conta di più. */
+.cert-feedback {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #dcdce2;
+  background: rgba(255, 255, 255, 0.04);
+}
+.cert-feedback.is-ok {
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(74, 222, 128, 0.12);
+  color: #a7f3c0;
+}
+.cert-feedback.is-err {
+  border-color: rgba(255, 91, 91, 0.45);
+  background: rgba(255, 91, 91, 0.12);
+  color: #ffb0b0;
+}
+.cert-feedback.is-busy {
+  border-color: rgba(255, 176, 32, 0.4);
+  background: var(--hyrox-soft);
+  color: #f0d9a8;
+}
