@@ -200,6 +200,7 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Certificato medico: caricamento con compressione, verifica, scadenza
 - [x] Smistamento automatico soci ↔ staff, con guardia anti-rimbalzo
 - [x] Approvazione certificato che propone anche l'attivazione del socio
+- [x] Sfondo del hero disegnato in SVG animato, come segnaposto sostituibile
 
 ### Da fare, in ordine di urgenza
 
@@ -210,7 +211,9 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
       informativa, consenso esplicito, politica di conservazione e cancellazione.
       **Da chiudere prima di aprire le registrazioni ai soci.**
 - [ ] Contenuti reali: indirizzo del box, foto, iframe Google Maps, evento in
-      corso (quello in `data.js` è una demo con data passata)
+      corso (quello in `data.js` è una demo con data passata). Lo sfondo del
+      hero oggi è un disegno SVG: va sostituito con foto o video del box vero
+      (istruzioni nel commento sopra `.hero-art` in `index.html`)
 - [ ] Capienze reali per tipo di classe (`SESSION_CAPACITY` in `config.js`)
 - [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze)
 - [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile

@@ -58,17 +58,102 @@
     <!-- ======================= HERO ======================= -->
     <section class="hero" id="hero">
       <!--
-        PLACEHOLDER MEDIA
-        Sostituisci il div .hero-media con la tua immagine o video:
-        <img src="assets/img/hero.jpg" alt="Atleti durante un WOD" class="hero-bg" />
-        oppure
-        <video class="hero-bg" autoplay muted loop playsinline poster="assets/img/hero.jpg">
-          <source src="assets/video/hero.mp4" type="video/mp4" />
-        </video>
+        SFONDO DEL HERO
+        Al momento è disegnato in SVG (blocco .hero-art qui sotto): pesa zero e
+        non ha licenze da rispettare, ma non è il vostro box.
+
+        Per mettere una foto vera, sostituisci .hero-art con:
+          <img src="assets/img/hero.jpg" alt="" class="hero-bg" />
+
+        Per un video, tenendo la foto come primo fotogramma:
+          <video class="hero-bg" autoplay muted loop playsinline
+                 poster="assets/img/hero.jpg">
+            <source src="assets/video/hero.mp4" type="video/mp4" />
+          </video>
+
+        Il video deve essere muto e sotto i ~3 MB: su rete mobile un file
+        pesante ritarda tutto il resto della pagina. 8-12 secondi in loop
+        bastano — nessuno guarda uno sfondo più a lungo.
       -->
       <div class="hero-media" aria-hidden="true">
-        <div class="hero-placeholder">
-          <span>IMMAGINE / VIDEO DI SFONDO</span>
+        <!-- Sfondo provvisorio disegnato in SVG: silhouette di un rig con
+             bilancieri e dischi. Non è una foto e non vuole sembrarlo, ma
+             regge la pagina finché non ci sono immagini del box vero.
+             Per sostituirlo basta cancellare questo blocco .hero-art. -->
+        <div class="hero-art">
+          <svg class="hero-rig" viewBox="0 0 1440 820" preserveAspectRatio="xMidYMax slice">
+            <defs>
+              <linearGradient id="rigMetal" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#14141a" />
+                <stop offset="45%" stop-color="#3c3c48" />
+                <stop offset="100%" stop-color="#191920" />
+              </linearGradient>
+              <linearGradient id="barMetal" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#4a4a58" />
+                <stop offset="100%" stop-color="#1d1d25" />
+              </linearGradient>
+              <linearGradient id="rimLight" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#ff3d17" stop-opacity="0" />
+                <stop offset="50%" stop-color="#ff7a35" stop-opacity=".9" />
+                <stop offset="100%" stop-color="#ff8a1e" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+
+            <!-- La struttura sta nella metà destra: la sinistra resta libera
+                 per il titolo, che deve poter restare leggibile. -->
+            <g class="rig-frame">
+              <g fill="url(#rigMetal)">
+                <rect x="700" y="60" width="30" height="700" />
+                <rect x="1010" y="60" width="30" height="700" />
+                <rect x="1320" y="60" width="30" height="700" />
+              </g>
+
+              <!-- traverse superiori e barre per trazioni -->
+              <g fill="url(#barMetal)">
+                <rect x="700" y="60" width="650" height="26" rx="4" />
+                <rect x="700" y="176" width="340" height="18" rx="9" />
+                <rect x="1010" y="176" width="340" height="18" rx="9" />
+                <rect x="700" y="330" width="340" height="14" rx="7" />
+                <rect x="1010" y="330" width="340" height="14" rx="7" />
+              </g>
+
+              <!-- luce radente che stacca il metallo dal fondo -->
+              <g fill="url(#rimLight)">
+                <rect x="700" y="176" width="340" height="3" />
+                <rect x="1010" y="176" width="340" height="3" />
+                <rect x="700" y="60" width="650" height="2" />
+              </g>
+
+              <!-- dischi appesi ai montanti -->
+              <g fill="#1e1e26" stroke="#3a3a46" stroke-width="2">
+                <circle cx="1175" cy="430" r="52" />
+                <circle cx="1175" cy="430" r="14" fill="#0d0d11" />
+                <circle cx="1175" cy="540" r="44" />
+                <circle cx="1175" cy="540" r="12" fill="#0d0d11" />
+              </g>
+            </g>
+
+            <!-- Bilanciere carico a terra. Tenuto dentro i montanti e ben
+                 sopra il bordo inferiore: appoggiato all'angolo verrebbe
+                 tagliato dal ritaglio dell'immagine e leggerebbe come una
+                 macchia invece che come un bilanciere. -->
+            <g class="rig-floor">
+              <rect x="790" y="700" width="330" height="12" rx="6" fill="#454553" />
+              <g fill="#20202a" stroke="#4a4a5a" stroke-width="2.5">
+                <rect x="822" y="650" width="20" height="112" rx="8" />
+                <rect x="849" y="634" width="26" height="144" rx="10" />
+                <rect x="1036" y="634" width="26" height="144" rx="10" />
+                <rect x="1069" y="650" width="20" height="112" rx="8" />
+              </g>
+              <rect x="849" y="634" width="26" height="3" fill="url(#rimLight)" />
+              <rect x="1036" y="634" width="26" height="3" fill="url(#rimLight)" />
+            </g>
+
+            <rect x="0" y="784" width="1440" height="40" fill="#08080a" />
+          </svg>
+
+          <!-- polvere di magnesite sospesa nella luce -->
+          <div class="hero-dust"></div>
         </div>
         <div class="hero-overlay"></div>
       </div>

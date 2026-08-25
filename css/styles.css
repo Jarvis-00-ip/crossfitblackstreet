@@ -372,27 +372,91 @@ h1, h2, h3, h4 {
 .hero-media { position: absolute; inset: 0; z-index: 0; }
 .hero-bg { width: 100%; height: 100%; object-fit: cover; }
 
-.hero-placeholder {
+/* ---------- Sfondo provvisorio del hero ----------
+   Disegnato invece che fotografato: pesa zero, non ha licenze da rispettare
+   e non finge di essere una foto del box. Va sostituito appena ci sono
+   immagini vere — vedi il commento in index.html. */
+.hero-art {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  overflow: hidden;
   background:
-    radial-gradient(900px 520px at 78% 18%, rgba(255, 61, 23, 0.22), transparent 62%),
-    repeating-linear-gradient(-45deg, #131317 0 22px, #0f0f13 22px 44px);
-  color: rgba(255, 255, 255, 0.16);
-  font-family: var(--font-display);
-  font-size: clamp(0.9rem, 2vw, 1.3rem);
-  letter-spacing: 0.4em;
-  text-align: center;
-  padding: 20px;
+    /* fascio di luce dall'alto, come i lucernari di un capannone */
+    radial-gradient(1100px 620px at 72% -10%, rgba(255, 106, 43, 0.28), transparent 65%),
+    radial-gradient(700px 500px at 12% 15%, rgba(255, 61, 23, 0.12), transparent 70%),
+    linear-gradient(180deg, #101014 0%, #0b0b0d 55%, #08080a 100%);
 }
 
+/* Alone caldo che respira: dà movimento senza distrarre dal testo. */
+.hero-art::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(closest-side, rgba(255, 61, 23, 0.16), transparent 70%);
+  animation: emberPulse 9s ease-in-out infinite;
+}
+
+@keyframes emberPulse {
+  0%, 100% { transform: translate3d(6%, -4%, 0) scale(1); opacity: 0.55; }
+  50%      { transform: translate3d(-4%, 3%, 0) scale(1.18); opacity: 0.9; }
+}
+
+.hero-rig {
+  position: absolute;
+  inset: auto 0 0;
+  width: 100%;
+  height: min(92%, 780px);
+}
+
+/* Polvere di magnesite: due strati di puntini che salgono a velocità
+   diverse, così la profondità si legge anche senza una foto. */
+.hero-dust {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.6px 1.6px at 18% 32%, rgba(255, 220, 190, 0.5), transparent),
+    radial-gradient(1.2px 1.2px at 63% 18%, rgba(255, 220, 190, 0.4), transparent),
+    radial-gradient(1.8px 1.8px at 81% 47%, rgba(255, 200, 160, 0.35), transparent),
+    radial-gradient(1.1px 1.1px at 34% 63%, rgba(255, 220, 190, 0.3), transparent),
+    radial-gradient(1.5px 1.5px at 92% 71%, rgba(255, 210, 170, 0.28), transparent),
+    radial-gradient(1.3px 1.3px at 47% 85%, rgba(255, 220, 190, 0.25), transparent);
+  background-size: 620px 620px;
+  animation: dustRise 26s linear infinite;
+}
+
+@keyframes dustRise {
+  from { background-position: 0 0; }
+  to   { background-position: -120px -620px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-art::before,
+  .hero-dust { animation: none; }
+}
+
+/* La sovrapposizione scurisce dove c'è il testo e lascia respirare dove c'è
+   la struttura: un velo uniforme renderebbe illeggibile il titolo oppure
+   invisibile lo sfondo, mai entrambe le cose bene. */
 .hero-overlay {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to top, var(--bg) 2%, rgba(11, 11, 13, 0.55) 45%, rgba(11, 11, 13, 0.82) 100%);
+    linear-gradient(90deg,
+      rgba(11, 11, 13, 0.94) 0%,
+      rgba(11, 11, 13, 0.86) 32%,
+      rgba(11, 11, 13, 0.42) 62%,
+      rgba(11, 11, 13, 0.2) 100%),
+    linear-gradient(to top, var(--bg) 0%, rgba(11, 11, 13, 0) 30%);
+}
+
+/* Sotto gli 860px il testo occupa tutta la larghezza: serve un velo pieno,
+   e la struttura resta come suggestione appena percepibile. */
+@media (max-width: 860px) {
+  .hero-overlay {
+    background:
+      linear-gradient(180deg, rgba(11, 11, 13, 0.82) 0%, rgba(11, 11, 13, 0.72) 55%, var(--bg) 100%);
+  }
+  .hero-rig { opacity: 0.5; }
 }
 
 .hero-content { position: relative; z-index: 2; }
@@ -500,12 +564,15 @@ h1, h2, h3, h4 {
 .badge-item span { color: var(--muted); font-size: 0.9rem; }
 
 .about-media { position: relative; }
+/* Placeholder dichiarato: resta scritto cosa va messo qui, ma con la stessa
+   materia del hero invece di un rettangolo a righe. */
 .media-placeholder {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(600px 300px at 30% 0%, rgba(255, 138, 30, 0.16), transparent 60%),
-    repeating-linear-gradient(-45deg, #16161b 0 18px, #121216 18px 36px);
+    radial-gradient(520px 380px at 70% 10%, rgba(255, 106, 43, 0.2), transparent 65%),
+    radial-gradient(380px 280px at 20% 80%, rgba(255, 61, 23, 0.1), transparent 70%),
+    linear-gradient(160deg, #16161c 0%, #0e0e12 100%);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   color: rgba(255, 255, 255, 0.2);
@@ -1259,7 +1326,9 @@ h1, h2, h3, h4 {
   }
   .nav-cta { margin-top: 20px; justify-content: center; }
 
-  .hero { min-height: 92svh; }
+  /* La CTA flottante galleggia in basso a destra: senza questo spazio
+     coprirebbe l'ultima statistica. */
+  .hero { min-height: 92svh; padding-bottom: 150px; }
   .hero-stats { gap: 14px 28px; }
   .hero-stats strong { font-size: 1.9rem; }
   .hero-actions .btn { width: 100%; }
