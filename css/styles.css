@@ -1406,7 +1406,13 @@ h1, h2, h3, h4 {
 .sr-athlete .btn { flex: none; }
 .sr-athlete .btn svg { width: 17px; height: 17px; }
 
-.sr-gallery { display: grid; gap: 16px; }
+/* Due colonne: le foto sono verticali in formato storia (9:16) e impilate
+   renderebbero la colonna molto più alta del testo accanto. */
+.sr-gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
 
 .sr-photo {
   position: relative;
@@ -1418,7 +1424,15 @@ h1, h2, h3, h4 {
   transition: transform 0.35s var(--ease), border-color 0.35s var(--ease);
 }
 .sr-photo:hover { transform: translateY(-5px); border-color: rgba(255, 176, 32, 0.45); }
-.sr-photo img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+/* Le foto sono 9:16 e vengono ritagliate a 4:5: con l'ancoraggio al centro
+   la parte alta se ne va, e con essa il viso. Il 30% tiene dentro sia il
+   viso che il titolo stampato nella parte bassa. */
+.sr-photo img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: center 30%;
+}
 
 .sr-photo figcaption {
   position: absolute;
@@ -1535,7 +1549,7 @@ h1, h2, h3, h4 {
 
 @media (max-width: 1024px) {
   .sr-grid { grid-template-columns: 1fr; }
-  .sr-gallery { grid-template-columns: 1fr 1fr; }
+  .sr-gallery { max-width: 640px; }
 }
 @media (max-width: 560px) {
   .sr-gallery { grid-template-columns: 1fr; }

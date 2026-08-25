@@ -34,7 +34,10 @@ function photoCard(photo, index) {
     figure.prepend(el('span', { class: 'sr-missing', text: photo.src.split('/').pop() }));
   });
 
-  figure.append(img, el('figcaption', { text: photo.label }));
+  // Niente didascalia: queste foto hanno già il titolo stampato sopra, e
+  // ripeterlo accanto sarebbe rumore. Il testo alternativo resta per chi
+  // naviga con uno screen reader.
+  figure.append(img);
   return figure;
 }
 

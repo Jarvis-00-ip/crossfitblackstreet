@@ -40,13 +40,11 @@ export const SENZA_RESPIRO = {
   photos: [
     {
       src: 'assets/img/senza-respiro-1.jpg',
-      alt: 'Lucia Dimola spinge un sled carico durante il WOD Senza Respiro',
-      label: 'Il WOD',
+      alt: 'Lucia Dimola spinge un sled carico durante il WOD Senza Respiro a RiminiWellness',
     },
     {
       src: 'assets/img/senza-respiro-2.jpg',
-      alt: 'Lucia Dimola in posizione overhead con bilanciere carico',
-      label: 'Le testimonianze',
+      alt: 'Lucia Dimola solleva un bilanciere sopra la testa durante le testimonianze del progetto',
     },
   ],
 };

@@ -223,6 +223,7 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Approvazione certificato che propone anche l'attivazione del socio
 - [x] Sfondo del hero disegnato in SVG animato, come segnaposto sostituibile
 - [x] Sezione «WOD Senza Respiro» + carosello Instagram a caricamento differito
+- [x] Foto reali: `senza-respiro-1.jpg`, `senza-respiro-2.jpg`, `box.jpg`
 
 ### Da fare, in ordine di urgenza
 
@@ -232,17 +233,14 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
       — dati sanitari, categoria particolare (art. 9 GDPR). Servono
       informativa, consenso esplicito, politica di conservazione e cancellazione.
       **Da chiudere prima di aprire le registrazioni ai soci.**
-- [ ] Contenuti reali: indirizzo del box, foto, iframe Google Maps, evento in
-      corso (quello in `data.js` è una demo con data passata). Lo sfondo del
-      hero oggi è un disegno SVG: va sostituito con foto o video del box vero
+- [ ] Contenuti reali: indirizzo del box, iframe Google Maps, evento in corso
+      (quello in `data.js` è una demo con data passata). Lo sfondo del hero è
+      ancora un disegno SVG: va sostituito con foto o video del box vero
       (istruzioni nel commento sopra `.hero-art` in `index.html`)
 - [ ] Capienze reali per tipo di classe (`SESSION_CAPACITY` in `config.js`)
 - [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze)
 - [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile
 - [ ] Font self-hosted (oggi da Google Fonts: l'IP dei visitatori raggiunge Google)
-- [ ] **Foto di `WOD Senza Respiro`**: mancano `assets/img/senza-respiro-1.jpg`,
-      `senza-respiro-2.jpg` e `box.jpg`. Finché non ci sono, la sezione mostra
-      segnaposto con il nome del file atteso
 - [ ] Testo di «WOD Senza Respiro» da confermare con la società, e consenso di
       Lucia Dimola per nome e condizione di salute (dato particolare, art. 9)
 - [ ] Codici dei post Instagram da mettere in `INSTAGRAM_POSTS` (`data.js`)
@@ -254,6 +252,9 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 ## 6. Convenzioni
 
 - **Lingua:** italiano ovunque — interfaccia, commenti, messaggi di commit.
+- **Nomi dei file immagine:** minuscoli, senza spazi né parentesi. Un nome come
+  `WhatsApp Image 2026-08-26 at 01.03.39 (1).jpeg` va codificato negli
+  indirizzi e si rompe con poco: rinominarlo con `git mv` appena arriva.
 - **Commenti:** spiegano *perché*, non *cosa*. Un commento che ripete il codice
   è rumore; uno che spiega un vincolo invisibile vale oro. Guarda quelli
   esistenti prima di scriverne di nuovi.
