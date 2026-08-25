@@ -36,9 +36,11 @@ Nessun build step, nessuna dipendenza: HTML + CSS + JavaScript ES Modules, pront
     └── img/                # immagini (hero, foto box, favicon)
 ```
 
-**Il backend è opzionale.** Finché `js/firebase/config.js` resta vuoto il sito funziona
-esattamente come un sito statico: eventi da `data.js`, form che apre WhatsApp, zero
-chiamate di rete verso Firebase.
+**Stato del backend:** `js/firebase/config.js` è compilato con il progetto
+`crossfit-black-street-website`. Il sito prova quindi a leggere gli eventi da Firestore e
+ad archiviare le richieste del form. Se Firestore non risponde — regole non ancora
+pubblicate, database non creato, rete assente — tutto ricade sui dati locali di `data.js`
+senza che il visitatore se ne accorga. Per spegnere il backend basta svuotare `apiKey`.
 
 ## 2. Avvio in locale
 
@@ -175,10 +177,16 @@ Google Analytics non serve.
 Nel progetto → icona `</>` → dai un nome → **non** attivare Firebase Hosting (il sito
 resta su GitHub Pages). Copia l'oggetto `firebaseConfig` che ti viene mostrato.
 
-**3. Incolla la config**
+**3. Incolla la config** ✅ *fatto*
 In `js/firebase/config.js`, dentro `FIREBASE_CONFIG`. Questi valori sono pubblici per
 definizione: finiscono nel JS visibile a tutti, ed è normale — la sicurezza sta nelle
-regole del punto 6.
+regole del punto 6, non nella segretezza della chiave.
+
+Una precauzione che vale comunque la pena: in
+[Google Cloud Console → Credenziali](https://console.cloud.google.com/apis/credentials)
+si può limitare la chiave per **referrer HTTP** (`jarvis-00-ip.github.io/*` e l'eventuale
+dominio custom). Non protegge i dati — a quello pensano le rules — ma impedisce ad altri
+siti di consumare la quota del progetto.
 
 **4. Crea il database**
 *Build → Firestore Database → Crea database* → modalità **produzione** → regione
@@ -296,3 +304,44 @@ automatica dal backend. Le opzioni:
 - **Form di contatto**: valida i campi, apre WhatsApp col messaggio precompilato e — se Firebase è configurato — archivia la richiesta su Firestore. L'apertura di WhatsApp avviene **prima** del salvataggio, e non per caso: `window.open()` deve restare dentro il gesto utente, altrimenti il browser la blocca come popup. Il salvataggio quindi non blocca mai la conversione.
 - **Eventi**: primo paint immediato da `data.js`, poi sostituzione con i dati di Firestore solo se il backend risponde. Se Firestore è vuoto, in errore o non configurato, la bacheca resta popolata invece di svuotarsi.
 - **Font**: Barlow Condensed (titoli) e Inter (testo), caricati da Google Fonts.
+
+## 9. Privacy e adempimenti
+
+> **Da sistemare prima di promuovere il sito.** Non è un dettaglio formale: da quando
+> Firebase è attivo, il form scrive nome ed email in un database.
+
+### Cosa raccoglie il sito oggi
+
+| Dato | Dove finisce | Base giuridica |
+|---|---|---|
+| Nome, email, messaggio | Firestore, collection `leads` | **da definire** (consenso) |
+| Timestamp dell'ultimo invio | `localStorage` del visitatore | tecnico, nessun consenso |
+| Indirizzo IP | Google Fonts, a ogni caricamento | da valutare |
+
+Il `localStorage` serve solo al rate limit antispam: è strettamente necessario al
+funzionamento, quindi non richiede banner.
+
+### Cosa manca
+
+1. **Informativa privacy** (`privacy.html`) — titolare, finalità, tempi di conservazione,
+   diritti dell'interessato, e il fatto che i dati sono su Firebase (Google).
+2. **Checkbox di consenso obbligatorio** nel form, con link all'informativa.
+3. **Consenso archiviato** insieme al lead: va aggiunto alle chiavi ammesse in
+   `firestore.rules` (`hasOnly`), altrimenti la scrittura viene rifiutata.
+
+Finché questi tre punti mancano, l'opzione prudente è **svuotare `apiKey` in
+`js/firebase/config.js`**: il form torna ad aprire solo WhatsApp e non si costruisce un
+archivio di dati personali.
+
+### Google Analytics: volutamente spento
+
+Il progetto Firebase ha Analytics attivo (`measurementId` nella config), ma il sito **non
+lo inizializza**. Analytics scrive cookie di profilazione: in UE servirebbe un banner con
+consenso preventivo e blocco degli script prima del consenso. Per contare i visitatori
+senza banner ci sono alternative cookieless (Plausible, Umami, Cloudflare Web Analytics).
+
+### Google Fonts
+
+I font arrivano dal CDN di Google, quindi l'IP dei visitatori raggiunge Google a ogni
+caricamento. Scaricarli in `assets/fonts/` e servirli dal proprio dominio chiude la
+questione e toglie anche una richiesta esterna dal percorso critico.
