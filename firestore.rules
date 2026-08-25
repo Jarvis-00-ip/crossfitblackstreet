@@ -56,6 +56,19 @@ service cloud.firestore {
       return value is string && value.size() >= minLen && value.size() <= maxLen;
     }
 
+    // Un socio è "attivo" solo dopo l'approvazione manuale di un admin:
+    // tesseramento e certificato medico sono obbligatori, e nessun controllo
+    // automatico può sostituire quella verifica.
+    function memberStatus() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status;
+    }
+
+    function isActiveMember() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && memberStatus() == 'active';
+    }
+
     /* ---------------------------------------------------------------- *
      * /admins — elenco degli amministratori
      * ---------------------------------------------------------------- */
@@ -170,6 +183,209 @@ service cloud.firestore {
       // gli indirizzi email dei clienti non devono essere pubblici.
       allow create: if validLead();
       allow read, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /users — soci registrati
+     * ---------------------------------------------------------------- */
+    match /users/{uid} {
+      allow get: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      // Registrazione: il socio crea il proprio profilo, e nasce SEMPRE in
+      // stato 'pending'. La riga `status == 'pending'` è ciò che impedisce di
+      // auto-approvarsi e prenotare senza certificato medico.
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && verifiedEmail()
+        && request.resource.data.keys().hasOnly([
+             'name', 'email', 'phone', 'status', 'createdAt', 'certStatus', 'certUploadedAt'
+           ])
+        && request.resource.data.get('certStatus', 'none') in ['none', 'pending']
+        && request.resource.data.status == 'pending'
+        && request.resource.data.email == myEmail()
+        && isString(request.resource.data.name, 2, 80)
+        && isString(request.resource.data.get('phone', ''), 0, 30)
+        && request.resource.data.createdAt is timestamp;
+
+      // Due scritture possibili, e nessuna delle due si sovrappone all'altra:
+      // il socio corregge i propri dati, l'admin cambia lo stato.
+      // Lo stato del certificato vive QUI e non nel documento del certificato
+      // perché il pannello elenca tutti i soci: se ogni riga trascinasse con sé
+      // il blob base64 del documento, aprire l'elenco scaricherebbe decine di
+      // megabyte. Qui restano solo i metadati; il file si carica su richiesta.
+      allow update: if request.auth != null && (
+        (
+          request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name', 'phone', 'certStatus', 'certUploadedAt'])
+          && isString(request.resource.data.get('name', ''), 2, 80)
+          && isString(request.resource.data.get('phone', ''), 0, 30)
+          // Caricare un documento lo rimette in attesa di verifica: il socio
+          // non può dichiarare approvato il proprio certificato.
+          && request.resource.data.get('certStatus', 'none') == 'pending'
+        ) || (
+          isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'certStatus', 'certExpiresAt', 'certNote'])
+          && request.resource.data.get('status', 'pending') in ['pending', 'active', 'blocked']
+          && request.resource.data.get('certStatus', 'none') in ['none', 'pending', 'approved', 'rejected']
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /certificates — certificato medico, salvato come base64
+     * ---------------------------------------------------------------- *
+     * Firebase Storage richiede il piano a pagamento, quindi il documento sta
+     * dentro Firestore. Il limite di 1 MiB per documento non è aggirabile: il
+     * client comprime le immagini e le regole qui sotto rifiutano ciò che
+     * non entrerebbe comunque.
+     *
+     * Un documento per socio, con l'UID come ID: un ricaricamento sostituisce
+     * il precedente invece di accumulare copie del certificato in giro.
+     */
+    match /certificates/{uid} {
+
+      function validUpload() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['uid', 'fileName', 'contentType', 'size', 'data', 'status', 'uploadedAt'])
+          && d.uid == uid
+          // Sempre 'pending': la verifica è di un umano.
+          && d.status == 'pending'
+          && d.contentType in ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+          && isString(d.fileName, 1, 160)
+          && d.size is int && d.size > 0 && d.size <= 716800
+          // 960.000 caratteri di base64 lasciano margine sotto il tetto di 1 MiB
+          // una volta contati gli altri campi.
+          && d.data is string && d.data.size() > 0 && d.data.size() <= 960000
+          && d.uploadedAt is timestamp;
+      }
+
+      allow get: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      // Nessun elenco: i certificati si aprono uno alla volta, mai in blocco.
+      allow list: if false;
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && verifiedEmail()
+        && validUpload();
+
+      // Il socio sostituisce il proprio documento; l'esito della verifica lo
+      // scrive l'admin nel profilo, non qui.
+      allow update: if request.auth != null && request.auth.uid == uid && validUpload();
+
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /sessions — singole occorrenze di classe, con contatore posti
+     * ---------------------------------------------------------------- *
+     * ID deterministico: 2026-08-26_0930_CF. Serve a rendere la generazione
+     * del calendario ripetibile senza creare doppioni.
+     *
+     * `booked` è un contatore denormalizzato. Non è un'ottimizzazione: le
+     * Security Rules non sanno contare documenti, quindi il limite dei posti
+     * può essere imposto solo confrontando un numero con un altro numero.
+     */
+    match /sessions/{sessionId} {
+
+      function bookingRef() {
+        return /databases/$(database)/documents/bookings/$(request.auth.uid + '_' + sessionId);
+      }
+
+      function onlyBookedChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked']);
+      }
+
+      // Prenotazione: +1 posto, mai oltre la capienza, mai su una classe già
+      // iniziata, e SOLO se nella stessa transazione nasce davvero la
+      // prenotazione corrispondente. Senza existsAfter() si potrebbe gonfiare
+      // il contatore per far risultare pieno un corso.
+      function takesSeat() {
+        return isActiveMember()
+          && onlyBookedChanged()
+          && request.resource.data.booked == resource.data.booked + 1
+          && request.resource.data.booked <= resource.data.capacity
+          && resource.data.startsAt > request.time
+          && existsAfter(bookingRef());
+      }
+
+      // Disdetta: -1 posto, mai sotto zero, e solo se la prenotazione sparisce
+      // davvero. Simmetrico al caso sopra: impedisce di liberare posti altrui.
+      function releasesSeat() {
+        return request.auth != null
+          && onlyBookedChanged()
+          && request.resource.data.booked == resource.data.booked - 1
+          && request.resource.data.booked >= 0
+          && !existsAfter(bookingRef());
+      }
+
+      function validSession() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['startsAt', 'type', 'capacity', 'booked', 'createdAt'])
+          && d.startsAt is timestamp
+          && d.type in ['CF', 'HYROX']
+          && d.capacity is int && d.capacity > 0 && d.capacity <= 200
+          && d.booked is int && d.booked == 0;
+      }
+
+      // Il calendario con i posti liberi è informazione pubblica: non contiene
+      // dati personali e permette di mostrare la disponibilità anche in home.
+      allow read: if true;
+
+      allow create: if isAdmin() && validSession();
+      allow delete: if isAdmin() && resource.data.booked == 0;
+
+      allow update: if takesSeat()
+        || releasesSeat()
+        || (isAdmin()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['capacity'])
+            && request.resource.data.capacity is int
+            && request.resource.data.capacity >= resource.data.booked);
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /bookings — prenotazioni
+     * ---------------------------------------------------------------- *
+     * ID deterministico {uid}_{sessionId}: rende impossibile prenotare due
+     * volte la stessa classe, senza bisogno di alcuna query.
+     */
+    match /bookings/{bookingId} {
+
+      function sessionRef(sid) {
+        return /databases/$(database)/documents/sessions/$(sid);
+      }
+
+      allow get, list: if request.auth != null
+        && (isAdmin() || resource.data.uid == request.auth.uid);
+
+      allow create: if isActiveMember()
+        && bookingId == request.auth.uid + '_' + request.resource.data.sessionId
+        && request.resource.data.keys().hasOnly([
+             'uid', 'sessionId', 'userName', 'userEmail', 'startsAt', 'type', 'createdAt'
+           ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == myEmail()
+        && isString(request.resource.data.userName, 2, 80)
+        && request.resource.data.startsAt is timestamp
+        && request.resource.data.createdAt is timestamp
+        // Il contatore DEVE essere salito nella stessa transazione: è questo
+        // che rende impossibile prenotare oltre la capienza.
+        && getAfter(sessionRef(request.resource.data.sessionId)).data.booked
+             == get(sessionRef(request.resource.data.sessionId)).data.booked + 1;
+
+      // Nulla è modificabile: si disdice e si riprenota.
+      allow update: if false;
+
+      allow delete: if request.auth != null
+        && (isAdmin() || (resource.data.uid == request.auth.uid && resource.data.startsAt > request.time))
+        // Anche la disdetta deve restituire il posto: senza questo vincolo il
+        // corso resterebbe pieno di prenotazioni cancellate.
+        && getAfter(sessionRef(resource.data.sessionId)).data.booked
+             == get(sessionRef(resource.data.sessionId)).data.booked - 1;
     }
 
     /* ---------------------------------------------------------------- *

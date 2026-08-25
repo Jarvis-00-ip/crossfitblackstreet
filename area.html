@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Area soci | CrossFit Black Street</title>
+  <meta name="description" content="Area riservata ai soci di CrossFit Black Street: prenota le classi CrossFit e HYROX." />
+  <meta name="theme-color" content="#0b0b0d" />
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/admin.css" />
+  <link rel="stylesheet" href="css/area.css" />
+</head>
+<body class="admin-body">
+
+  <header class="admin-header">
+    <div class="admin-header-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 9v6M8 6v12M16 6v12M20 9v6M8 12h8" />
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>Black Street</strong>
+          <em>Area soci</em>
+        </span>
+      </a>
+
+      <div class="admin-user" id="memberBar" hidden>
+        <span id="memberEmail"></span>
+        <button class="btn btn-ghost btn-sm" id="logoutBtn" type="button">Esci</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-main">
+
+    <!-- Firebase non configurato -->
+    <section class="admin-panel" id="setupView" hidden>
+      <h1 class="admin-title">Area soci non disponibile</h1>
+      <p>Il servizio di prenotazione non è ancora attivo. Scrivici su WhatsApp per prenotare.</p>
+      <a class="btn btn-primary" data-wa-link href="#">Scrivici su WhatsApp</a>
+    </section>
+
+    <!-- Login -->
+    <section class="admin-panel admin-login" id="loginView" hidden>
+      <h1 class="admin-title">Area soci</h1>
+      <p class="admin-desc">Accedi con Google per prenotare le tue classi.</p>
+
+      <button type="button" class="btn btn-ghost btn-block google-btn" id="googleBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="google-icon">
+          <path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.54 5.54 0 01-2.4 3.63v3h3.88c2.27-2.09 3.55-5.17 3.55-8.87z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.95-2.91l-3.88-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A12 12 0 0012 24z"/>
+          <path fill="#FBBC05" d="M5.27 14.29a7.2 7.2 0 010-4.58V6.62H1.29a12 12 0 000 10.76l3.98-3.09z"/>
+          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 001.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/>
+        </svg>
+        <span>Continua con Google</span>
+      </button>
+
+      <p class="form-status" id="loginStatus" role="status" aria-live="polite"></p>
+
+      <p class="login-foot">
+        Non sei ancora socio? <a data-wa-link href="#">Prenota la tua prova gratuita</a>.
+      </p>
+    </section>
+
+    <!-- Primo accesso: completamento profilo -->
+    <section class="admin-panel admin-login" id="registerView" hidden>
+      <h1 class="admin-title">Completa il profilo</h1>
+      <p class="admin-desc">Ultimo passaggio prima di poter prenotare.</p>
+
+      <form class="contact-form" id="registerForm" novalidate>
+        <div class="field">
+          <label for="regName">Nome e cognome<span aria-hidden="true">*</span></label>
+          <input type="text" id="regName" maxlength="80" required autocomplete="name" />
+          <p class="field-error" data-error-for="regName"></p>
+        </div>
+        <div class="field">
+          <label for="regPhone">Telefono</label>
+          <input type="tel" id="regPhone" maxlength="30" autocomplete="tel" placeholder="Facoltativo" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="regBtn">Invia richiesta</button>
+        <p class="form-status" id="regStatus" role="status" aria-live="polite"></p>
+      </form>
+
+      <p class="notice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" stroke-linecap="round" />
+        </svg>
+        <span>Lo staff attiva il tuo profilo dopo aver verificato <strong>tesseramento e certificato medico</strong>.</span>
+      </p>
+    </section>
+
+    <!-- In attesa di approvazione -->
+    <section class="admin-panel admin-login" id="pendingView" hidden>
+      <h1 class="admin-title">Richiesta inviata</h1>
+      <p class="admin-desc">
+        Il tuo profilo è in attesa di attivazione. Lo staff verifica tesseramento e
+        certificato medico, poi potrai prenotare da qui.
+      </p>
+      <a class="btn btn-primary btn-block" data-wa-link href="#">Sollecita su WhatsApp</a>
+
+      <div class="cert-card" data-cert-mount>
+        <div class="cert-head">
+          <h3 class="cert-title">Certificato medico</h3>
+          <span class="pill" data-cert-status>—</span>
+        </div>
+        <p class="cert-note" data-cert-note></p>
+        <div class="cert-preview" data-cert-preview hidden></div>
+        <label class="cert-drop">
+          <input type="file" accept="image/*,application/pdf" data-cert-input />
+          <span data-cert-label>Scegli foto o PDF</span>
+        </label>
+        <button type="button" class="btn btn-ghost btn-block btn-sm" data-cert-send disabled>Carica documento</button>
+        <p class="form-status" data-cert-feedback role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <!-- Accesso bloccato -->
+    <section class="admin-panel admin-login" id="blockedView" hidden>
+      <h1 class="admin-title">Accesso sospeso</h1>
+      <p class="admin-desc">
+        Il tuo profilo non è attivo. Può succedere se il certificato medico o il
+        tesseramento sono scaduti: contattaci e risolviamo.
+      </p>
+      <a class="btn btn-primary btn-block" data-wa-link href="#">Contatta il box</a>
+    </section>
+
+    <!-- Prenotazioni -->
+    <section id="bookingView" hidden>
+      <nav class="admin-tabs" role="tablist">
+        <button class="admin-tab" id="tabCalendar" role="tab" aria-selected="true" aria-controls="panelCalendar" type="button">
+          Prenota
+        </button>
+        <button class="admin-tab" id="tabMine" role="tab" aria-selected="false" aria-controls="panelMine" type="button">
+          Le mie prenotazioni <span class="count" id="mineCount">0</span>
+        </button>
+      </nav>
+
+      <div class="admin-tabpanel" id="panelCalendar" role="tabpanel" aria-labelledby="tabCalendar">
+        <div class="admin-panel">
+          <div class="admin-panel-head">
+            <h2 class="admin-title">Prossime classi</h2>
+            <div class="chips" id="areaTypeFilters" role="group" aria-label="Filtra per disciplina"></div>
+          </div>
+          <div id="calendarList" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <div class="admin-tabpanel" id="panelMine" role="tabpanel" aria-labelledby="tabMine" hidden>
+        <div class="admin-panel">
+          <h2 class="admin-title">Le mie prenotazioni</h2>
+          <p class="admin-desc">Puoi disdire fino all'orario di inizio della classe.</p>
+          <div class="admin-list" id="mineList"></div>
+        </div>
+
+        <div class="admin-panel">
+      <div class="cert-card" data-cert-mount>
+        <div class="cert-head">
+          <h3 class="cert-title">Certificato medico</h3>
+          <span class="pill" data-cert-status>—</span>
+        </div>
+        <p class="cert-note" data-cert-note></p>
+        <div class="cert-preview" data-cert-preview hidden></div>
+        <label class="cert-drop">
+          <input type="file" accept="image/*,application/pdf" data-cert-input />
+          <span data-cert-label>Scegli foto o PDF</span>
+        </label>
+        <button type="button" class="btn btn-ghost btn-block btn-sm" data-cert-send disabled>Carica documento</button>
+        <p class="form-status" data-cert-feedback role="status" aria-live="polite"></p>
+      </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="admin-error" id="globalError" hidden></p>
+  </main>
+
+  <script type="module" src="js/area.js"></script>
+</body>
+</html>

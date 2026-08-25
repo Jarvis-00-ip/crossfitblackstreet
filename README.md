@@ -10,6 +10,7 @@ Nessun build step, nessuna dipendenza: HTML + CSS + JavaScript ES Modules, pront
 ```
 .
 ├── index.html              # markup di tutte le sezioni
+├── area.html               # area soci: registrazione e prenotazioni
 ├── admin.html              # pannello di amministrazione (non linkato dal sito)
 ├── .nojekyll               # disattiva Jekyll su GitHub Pages
 ├── firestore.rules         # ⭐ TUTTA la sicurezza del backend
@@ -26,7 +27,10 @@ Nessun build step, nessuna dipendenza: HTML + CSS + JavaScript ES Modules, pront
 │   ├── services.js         # card servizi + box convenzione
 │   ├── contact.js          # validazione form + lead + invio WhatsApp
 │   ├── ui.js               # header, menu mobile, scrollspy, reveal on scroll
-│   ├── admin.js            # logica del pannello admin (unico file che usa l'SDK)
+│   ├── area.js             # logica dell'area soci
+│   ├── admin.js            # logica del pannello admin
+│   ├── session-id.js       # identità e date delle sessioni (condiviso)
+│   ├── upload.js           # compressione e codifica dei documenti
 │   └── firebase/
 │       ├── config.js       # ⭐ credenziali del progetto Firebase
 │       ├── rest.js         # client Firestore via REST (senza SDK)
@@ -77,6 +81,7 @@ Dopo 1–2 minuti il sito è online su
 | 4 | Palinsesto | Calendario interattivo con filtri per giorno e disciplina |
 | 5 | Eventi | Card evento (demo: APERI MURPH) |
 | 6 | Contatti | WhatsApp, Instagram, placeholder mappa, form di contatto |
+| 7 | Area soci (`area.html`) | Login Google, certificato medico, prenotazione classi |
 
 ## 5. Come modificare i contenuti
 
@@ -289,7 +294,75 @@ l'indirizzo di un invitato potrebbe registrarsi con email/password usando quel d
 rubargli l'invito senza avere accesso alla casella. Google verifica sempre l'email; un
 account email/password no, finché non conferma il messaggio.
 
-### 7.3.2 Il proprietario è inamovibile
+### 7.3.2 Prenotazioni
+
+`users/{uid}` — `name`, `email`, `phone`, `status`, più i metadati del certificato
+(`certStatus`, `certUploadedAt`, `certExpiresAt`, `certNote`). `status` è **l'unico
+interruttore che abilita le prenotazioni**: nasce `pending` e solo un admin lo porta ad
+`active`, dopo aver verificato tesseramento e certificato medico.
+
+`sessions/{id}` — una singola occorrenza di classe. ID deterministico
+`2026-08-26_0930_CF`, così rigenerare il calendario non crea doppioni.
+Campi: `startsAt`, `type`, `capacity`, `booked`.
+
+`bookings/{uid}_{sessionId}` — ID composto: rende **impossibile prenotare due volte** la
+stessa classe, senza bisogno di alcuna query.
+
+**Il problema dei posti limitati.** Le Security Rules non sanno contare documenti: non si
+può scrivere «consenti se le prenotazioni di questo slot sono meno di 14». E le Cloud
+Functions richiedono il piano a pagamento. La soluzione è un **contatore denormalizzato**
+`booked` sulla sessione, aggiornato in **transazione** insieme alla prenotazione:
+
+```
+allow update: if request.resource.data.booked == resource.data.booked + 1
+            && request.resource.data.booked <= resource.data.capacity
+            && existsAfter(/…/bookings/$(uid + '_' + sessionId));
+```
+
+`existsAfter()` guarda lo stato **dopo** che la transazione ha commesso. Senza quella
+riga si potrebbe gonfiare il contatore senza prenotare, facendo risultare pieno un corso
+vuoto; e senza il vincolo speculare sulla cancellazione, si libererebbero posti altrui.
+Due soci che premono «Prenota» sull'ultimo posto nello stesso istante: la transazione ne
+fa passare uno solo.
+
+**Aprire le prenotazioni.** Il pannello, scheda *Classi*, genera le sessioni dal
+palinsesto per le prossime settimane (`WEEKS_TO_GENERATE` in `config.js`). È idempotente:
+le classi già esistenti vengono saltate, non sovrascritte — sovrascriverle azzererebbe il
+contatore e cancellerebbe di fatto le prenotazioni.
+
+### 7.3.3 Certificato medico
+
+Firebase Storage richiede il piano a pagamento, quindi il documento è salvato come
+**stringa base64 dentro Firestore**. Il vincolo che governa tutto: **un documento non può
+superare 1 MiB**, e il base64 gonfia i byte di circa un terzo.
+
+| File | In base64 | Esito |
+|---|---|---|
+| 700 KB | ~933 KB | entra, con margine |
+| 800 KB | ~1,07 MB | documento rifiutato |
+
+Da qui i due comportamenti in `js/upload.js`:
+
+- **le foto vengono ricompresse** (lato lungo max 1600px, JPEG a qualità calante finché
+  non rientrano). Una foto da telefono passa da alcuni MB a poche centinaia di KB
+  restando leggibile. Prima si abbassa la qualità, poi le dimensioni: sfocare è meglio
+  che rimpicciolire un documento che va letto;
+- **i PDF non si comprimono nel browser**: sopra i 700 KB l'unica risposta onesta è
+  dirlo, suggerendo di fotografare il certificato.
+
+**Perché il blob sta in una collection separata.** `certificates/{uid}` contiene il file;
+sul profilo del socio resta solo `certStatus`. Il pannello elenca tutti i soci: se ogni
+riga trascinasse con sé qualche centinaio di KB di base64, aprire l'elenco scaricherebbe
+decine di megabyte. Il documento si carica **su richiesta**, quando l'admin lo apre — e
+le rules vietano esplicitamente di elencare la collection (`allow list: if false`).
+
+**Il ciclo.** Il socio carica (vede l'anteprima prima di inviare) → `certStatus: 'pending'`
+→ l'admin apre il documento, lo approva registrando la scadenza, oppure lo respinge con
+un motivo che il socio legge. Un nuovo caricamento sostituisce il precedente e rimette
+tutto in verifica: le regole impediscono al socio di dichiarare approvato il proprio
+certificato.
+
+### 7.3.4 Il proprietario è inamovibile
 
 L'UID del proprietario è **scritto dentro `firestore.rules`**, nella funzione
 `ownerUid()`. Non è un campo del database, quindi nessuna scrittura può cambiarlo:

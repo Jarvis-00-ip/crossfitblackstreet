@@ -9,6 +9,7 @@
  *  - CRUD degli eventi in bacheca, in tempo reale
  *  - consultazione delle richieste arrivate dal form di contatto
  *  - gestione del team: inviti per email e revoca degli accessi
+ *  - approvazione dei soci e apertura delle classi prenotabili
  *
  * Nota sull'autorizzazione: autenticarsi non significa essere autorizzati.
  * Con il login Google chiunque abbia un account può completare l'accesso; per
@@ -19,7 +20,13 @@
  */
 
 import { qs, el } from './dom.js';
-import { FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured, isOwner } from './firebase/config.js';
+import {
+  FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured, isOwner,
+  SESSION_CAPACITY, WEEKS_TO_GENERATE,
+} from './firebase/config.js';
+import { SCHEDULE, CLASS_TYPES } from './data.js';
+import { expandSchedule, asDate } from './session-id.js';
+import { toDataUrl, humanSize } from './upload.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -67,6 +74,10 @@ function authMessage(code) {
 
 const dateFmt = new Intl.DateTimeFormat('it-IT', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
+
+const sessionFmt = new Intl.DateTimeFormat('it-IT', {
+  weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
 });
 
 /* ------------------------------------------------------------------ *
@@ -241,6 +252,8 @@ function watchAuth({ auth, db, A, S }) {
       initEvents({ db, S }),
       initLeads({ db, S }),
       initTeam({ db, S, A, auth, user }),
+      initMembers({ db, S }),
+      initSessions({ db, S }),
     ];
   });
 }
@@ -502,6 +515,422 @@ function initLeads({ db, S }) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Soci
+ * ------------------------------------------------------------------ */
+
+const STATUS_LABEL = {
+  pending: 'In attesa',
+  active: 'Attivo',
+  blocked: 'Sospeso',
+};
+
+function initMembers({ db, S }) {
+  const list = qs('#membersList');
+  const filters = qs('#memberFilters');
+  const state = { filter: 'pending', members: [] };
+
+  [
+    { value: 'pending', label: 'Da attivare' },
+    { value: 'active', label: 'Attivi' },
+    { value: 'blocked', label: 'Sospesi' },
+    { value: 'ALL', label: 'Tutti' },
+  ].forEach((opt) => {
+    filters.append(el('button', {
+      type: 'button',
+      class: 'chip',
+      'aria-pressed': String(state.filter === opt.value),
+      dataset: { value: opt.value },
+      text: opt.label,
+      onClick: () => {
+        state.filter = opt.value;
+        [...filters.children].forEach((c) =>
+          c.setAttribute('aria-pressed', String(c.dataset.value === opt.value)));
+        render();
+      },
+    }));
+  });
+
+  async function setStatus(member, status) {
+    try {
+      await S.updateDoc(S.doc(db, COLLECTIONS.users, member.id), { status });
+    } catch (error) {
+      showError(`Aggiornamento non riuscito: ${error.message}`);
+    }
+  }
+
+  const CERT_LABEL = {
+    none: 'Nessun certificato',
+    pending: 'Certificato da verificare',
+    approved: 'Certificato approvato',
+    rejected: 'Certificato respinto',
+  };
+
+  /**
+   * Carica il certificato SOLO quando serve.
+   *
+   * Il blob base64 pesa centinaia di KB: tenerlo in un listener sull'intera
+   * collection significherebbe scaricare decine di megabyte ogni volta che si
+   * apre l'elenco soci. Nella lista viaggiano solo i metadati sul profilo.
+   */
+  async function showCertificate(member, container) {
+    container.replaceChildren(el('p', { class: 'admin-row-meta', text: 'Caricamento del documento…' }));
+
+    let cert;
+    try {
+      const snap = await S.getDoc(S.doc(db, COLLECTIONS.certificates, member.id));
+      cert = snap.exists() ? snap.data() : null;
+    } catch (error) {
+      container.replaceChildren(el('p', { class: 'admin-row-meta', text: `Documento non leggibile: ${error.message}` }));
+      return;
+    }
+
+    if (!cert) {
+      container.replaceChildren(el('p', { class: 'admin-row-meta', text: 'Il socio non ha ancora caricato nulla.' }));
+      return;
+    }
+
+    const url = toDataUrl(cert.contentType, cert.data);
+    const meta = [cert.fileName, humanSize(cert.size || 0),
+      asDate(cert.uploadedAt) ? `caricato il ${dateFmt.format(asDate(cert.uploadedAt))}` : null]
+      .filter(Boolean).join(' · ');
+
+    container.replaceChildren(
+      el('p', { class: 'admin-row-meta', text: meta }),
+      cert.contentType.startsWith('image/')
+        ? el('a', { class: 'cert-figure', href: url, target: '_blank', rel: 'noopener' }, [
+            el('img', { src: url, alt: `Certificato di ${member.name || member.id}` }),
+          ])
+        // I browser bloccano la navigazione verso un data: URL in una nuova
+        // scheda, quindi il PDF passa da un blob temporaneo.
+        : el('button', {
+            type: 'button', class: 'mini-btn', text: 'Apri il PDF',
+            onClick: () => {
+              const bytes = Uint8Array.from(atob(cert.data), (c) => c.charCodeAt(0));
+              const blobUrl = URL.createObjectURL(new Blob([bytes], { type: cert.contentType }));
+              window.open(blobUrl, '_blank', 'noopener');
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+            },
+          }),
+      el('div', { class: 'admin-row-actions' }, [
+        el('button', {
+          type: 'button', class: 'mini-btn', text: 'Approva certificato',
+          onClick: () => reviewCertificate(member, 'approved'),
+        }),
+        el('button', {
+          type: 'button', class: 'mini-btn danger', text: 'Respingi',
+          onClick: () => reviewCertificate(member, 'rejected'),
+        }),
+      ])
+    );
+  }
+
+  async function reviewCertificate(member, verdict) {
+    const patch = { certStatus: verdict };
+
+    if (verdict === 'approved') {
+      // La scadenza è il dato che rende utile l'archivio: senza, fra un anno
+      // nessuno sa più quali certificati siano ancora validi.
+      const answer = window.prompt(
+        'Data di scadenza del certificato (gg/mm/aaaa). Lascia vuoto se non la sai:', ''
+      );
+      if (answer === null) return;
+      const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(answer.trim());
+      if (answer.trim() && !match) {
+        showError('Data non valida: usa il formato gg/mm/aaaa.');
+        return;
+      }
+      if (match) patch.certExpiresAt = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+    } else {
+      const reason = window.prompt('Motivo del rifiuto (lo vedrà il socio):', 'documento illeggibile');
+      if (reason === null) return;
+      patch.certNote = reason.slice(0, 200);
+    }
+
+    try {
+      await S.updateDoc(S.doc(db, COLLECTIONS.users, member.id), patch);
+    } catch (error) {
+      showError(`Aggiornamento non riuscito: ${error.message}`);
+    }
+  }
+
+  function row(member) {
+    const status = member.status || 'pending';
+    const certStatus = member.certStatus || 'none';
+
+    // I comandi mostrati sono solo quelli che cambiano davvero qualcosa:
+    // riproporre "Attiva" a un socio già attivo è rumore.
+    const actions = [];
+    if (status !== 'active') {
+      actions.push(el('button', {
+        type: 'button', class: 'mini-btn', text: 'Attiva',
+        onClick: () => setStatus(member, 'active'),
+      }));
+    }
+    if (status !== 'blocked') {
+      actions.push(el('button', {
+        type: 'button', class: 'mini-btn danger', text: 'Sospendi',
+        onClick: () => setStatus(member, 'blocked'),
+      }));
+    }
+    if (status === 'blocked') {
+      actions.push(el('button', {
+        type: 'button', class: 'mini-btn', text: 'Rimetti in attesa',
+        onClick: () => setStatus(member, 'pending'),
+      }));
+    }
+
+    const certBox = el('div', { class: 'cert-review' });
+
+    actions.push(el('button', {
+      type: 'button',
+      class: 'mini-btn',
+      text: certStatus === 'none' ? 'Nessun documento' : 'Vedi certificato',
+      disabled: certStatus === 'none',
+      onClick: () => showCertificate(member, certBox),
+    }));
+
+    return el('article', {
+      class: `admin-row${status === 'pending' ? ' is-new' : status === 'blocked' ? ' is-draft' : ''}`,
+    }, [
+      el('div', { class: 'admin-row-head' }, [
+        el('h3', { class: 'admin-row-title', text: member.name || member.email || member.id }),
+        el('div', { class: 'pill-row' }, [
+          el('span', {
+            class: `pill${status === 'active' ? ' on' : status === 'pending' ? ' warn' : ''}`,
+            text: STATUS_LABEL[status] || status,
+          }),
+          el('span', {
+            class: `pill${certStatus === 'approved' ? ' on' : certStatus === 'none' ? '' : ' warn'}`,
+            text: CERT_LABEL[certStatus] || certStatus,
+          }),
+        ]),
+      ]),
+      el('p', {
+        class: 'admin-row-meta',
+        text: [
+          member.email,
+          member.phone,
+          asDate(member.createdAt) ? `iscritto il ${dateFmt.format(asDate(member.createdAt))}` : null,
+        asDate(member.certExpiresAt)
+          ? `certificato valido fino al ${asDate(member.certExpiresAt).toLocaleDateString('it-IT')}`
+          : null,
+        ].filter(Boolean).join(' · '),
+      }),
+      el('div', { class: 'admin-row-actions' }, actions),
+      certBox,
+    ]);
+  }
+
+  function render() {
+    const rows = state.members.filter((m) => state.filter === 'ALL' || (m.status || 'pending') === state.filter);
+    list.replaceChildren(
+      ...(rows.length
+        ? rows.map(row)
+        : [el('p', { class: 'admin-empty', text: 'Nessun socio in questo stato.' })])
+    );
+  }
+
+  return S.onSnapshot(
+    S.collection(db, COLLECTIONS.users),
+    (snapshot) => {
+      state.members = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+      // Il contatore mostra chi aspetta una risposta, non il totale: è
+      // l'unico numero su cui c'è qualcosa da fare.
+      qs('#membersCount').textContent =
+        String(state.members.filter((m) => (m.status || 'pending') === 'pending').length);
+      render();
+    },
+    (error) => showError(`Lettura soci non riuscita: ${error.message}`)
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Classi prenotabili
+ * ------------------------------------------------------------------ */
+
+function initSessions({ db, S }) {
+  const list = qs('#sessionsList');
+  const status = qs('#generateStatus');
+  const button = qs('#generateBtn');
+  const state = { sessions: [], open: null, roster: [] };
+  let stopRoster = null;
+
+  qs('#capCF').textContent = String(SESSION_CAPACITY.CF);
+  qs('#capHYROX').textContent = String(SESSION_CAPACITY.HYROX);
+
+  /* ---------- generazione del calendario ---------- */
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    status.className = 'form-status';
+    status.textContent = 'Generazione…';
+
+    try {
+      const slots = expandSchedule(SCHEDULE, WEEKS_TO_GENERATE * 7)
+        .filter((slot) => slot.startsAt > new Date());
+
+      // Le classi già esistenti si saltano: sovrascriverle azzererebbe il
+      // contatore dei posti e cancellerebbe di fatto le prenotazioni.
+      const existing = new Set(state.sessions.map((s) => s.id));
+      const missing = slots.filter((slot) => !existing.has(slot.id));
+
+      if (!missing.length) {
+        status.classList.add('ok');
+        status.textContent = 'Calendario già completo: nessuna nuova classe da aprire.';
+        return;
+      }
+
+      // Batch da 400: il limite di Firestore è 500 operazioni.
+      for (let i = 0; i < missing.length; i += 400) {
+        const batch = S.writeBatch(db);
+        missing.slice(i, i + 400).forEach((slot) => {
+          batch.set(S.doc(db, COLLECTIONS.sessions, slot.id), {
+            startsAt: slot.startsAt,
+            type: slot.type,
+            capacity: SESSION_CAPACITY[slot.type] ?? 12,
+            booked: 0,
+            createdAt: S.serverTimestamp(),
+          });
+        });
+        await batch.commit();
+      }
+
+      status.classList.add('ok');
+      status.textContent = `Aperte ${missing.length} classi nelle prossime ${WEEKS_TO_GENERATE} settimane.`;
+    } catch (error) {
+      status.classList.add('err');
+      status.textContent = `Generazione non riuscita: ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  /* ---------- iscritti a una classe ---------- */
+
+  function openRoster(session) {
+    if (stopRoster) stopRoster();
+    state.open = state.open === session.id ? null : session.id;
+    state.roster = [];
+
+    if (!state.open) {
+      stopRoster = null;
+      render();
+      return;
+    }
+
+    stopRoster = S.onSnapshot(
+      S.query(S.collection(db, COLLECTIONS.bookings), S.where('sessionId', '==', session.id)),
+      (snapshot) => {
+        state.roster = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        render();
+      },
+      (error) => showError(`Iscritti non leggibili: ${error.message}`)
+    );
+    render();
+  }
+
+  /** Rimuove un iscritto restituendo il posto, nella stessa transazione. */
+  async function removeBooking(booking) {
+    if (!window.confirm(`Rimuovere ${booking.userName} da questa classe?`)) return;
+    try {
+      await S.runTransaction(db, async (tx) => {
+        const sessionRef = S.doc(db, COLLECTIONS.sessions, booking.sessionId);
+        const bookingRef = S.doc(db, COLLECTIONS.bookings, booking.id);
+        const sessionSnap = await tx.get(sessionRef);
+        if (sessionSnap.exists()) {
+          tx.update(sessionRef, { booked: Math.max(0, sessionSnap.data().booked - 1) });
+        }
+        tx.delete(bookingRef);
+      });
+    } catch (error) {
+      showError(`Rimozione non riuscita: ${error.message}`);
+    }
+  }
+
+  function rosterBlock() {
+    if (!state.roster.length) {
+      return el('p', { class: 'admin-empty', text: 'Nessun iscritto.' });
+    }
+    return el('div', { class: 'roster' },
+      state.roster
+        .sort((a, b) => (a.userName || '').localeCompare(b.userName || ''))
+        .map((booking) =>
+          el('div', { class: 'roster-row' }, [
+            el('span', {}, [
+              el('strong', { text: booking.userName || '—' }),
+              el('em', { text: booking.userEmail || '' }),
+            ]),
+            el('button', {
+              type: 'button', class: 'mini-btn danger', text: 'Rimuovi',
+              onClick: () => removeBooking(booking),
+            }),
+          ])
+        )
+    );
+  }
+
+  function row(session) {
+    const start = asDate(session.startsAt);
+    const left = Math.max(0, (session.capacity || 0) - (session.booked || 0));
+    const isOpen = state.open === session.id;
+
+    return el('article', { class: `admin-row${session.booked > 0 ? ' is-featured' : ''}` }, [
+      el('button', {
+        type: 'button',
+        class: 'session-head',
+        'aria-expanded': String(isOpen),
+        onClick: () => openRoster(session),
+      }, [
+        el('span', { class: 'session-when', text: start ? sessionFmt.format(start) : session.id }),
+        el('span', { class: 'pill-row' }, [
+          el('span', {
+            class: `pill${session.type === 'HYROX' ? ' warn' : ' on'}`,
+            text: CLASS_TYPES[session.type]?.short || session.type,
+          }),
+          el('span', {
+            class: 'pill',
+            text: `${session.booked || 0}/${session.capacity || 0}${left === 0 ? ' · completo' : ''}`,
+          }),
+        ]),
+      ]),
+      isOpen ? rosterBlock() : null,
+    ]);
+  }
+
+  function render() {
+    list.replaceChildren(
+      ...(state.sessions.length
+        ? state.sessions.map(row)
+        : [el('p', {
+            class: 'admin-empty',
+            text: 'Nessuna classe aperta. Usa «Genera calendario» per aprire le prenotazioni.',
+          })])
+    );
+  }
+
+  const stopSessions = S.onSnapshot(
+    S.query(S.collection(db, COLLECTIONS.sessions), S.where('startsAt', '>', new Date())),
+    (snapshot) => {
+      state.sessions = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (asDate(a.startsAt)?.getTime() || 0) - (asDate(b.startsAt)?.getTime() || 0));
+
+      qs('#sessionsCount').textContent = String(state.sessions.length);
+      render();
+    },
+    (error) => showError(`Lettura classi non riuscita: ${error.message}`)
+  );
+
+  return () => {
+    stopSessions();
+    if (stopRoster) stopRoster();
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Inviti e team
  * ------------------------------------------------------------------ */
 
@@ -725,6 +1154,8 @@ function initTabs() {
   const tabs = [
     { tab: qs('#tabEvents'), panel: qs('#panelEvents') },
     { tab: qs('#tabLeads'), panel: qs('#panelLeads') },
+    { tab: qs('#tabMembers'), panel: qs('#panelMembers') },
+    { tab: qs('#tabSessions'), panel: qs('#panelSessions') },
     { tab: qs('#tabTeam'), panel: qs('#panelTeam') },
   ];
 

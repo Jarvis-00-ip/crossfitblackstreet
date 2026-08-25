@@ -40,7 +40,23 @@ export const COLLECTIONS = {
   leads: 'leads',
   admins: 'admins',
   invites: 'invites',
+  users: 'users',
+  sessions: 'sessions',
+  bookings: 'bookings',
+  certificates: 'certificates',
 };
+
+/**
+ * Posti disponibili per tipo di classe, usati quando l'admin genera il
+ * calendario. La capienza è poi modificabile sessione per sessione.
+ */
+export const SESSION_CAPACITY = {
+  CF: 14,
+  HYROX: 10,
+};
+
+/** Quante settimane di calendario genera il pannello in un colpo solo. */
+export const WEEKS_TO_GENERATE = 4;
 
 /**
  * UID del proprietario. Serve solo all'interfaccia, per mostrare chi è

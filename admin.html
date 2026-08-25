@@ -109,6 +109,12 @@
         <button class="admin-tab" id="tabLeads" role="tab" aria-selected="false" aria-controls="panelLeads" type="button">
           Richieste <span class="count" id="leadsCount">0</span>
         </button>
+        <button class="admin-tab" id="tabMembers" role="tab" aria-selected="false" aria-controls="panelMembers" type="button">
+          Soci <span class="count" id="membersCount">0</span>
+        </button>
+        <button class="admin-tab" id="tabSessions" role="tab" aria-selected="false" aria-controls="panelSessions" type="button">
+          Classi <span class="count" id="sessionsCount">0</span>
+        </button>
         <button class="admin-tab" id="tabTeam" role="tab" aria-selected="false" aria-controls="panelTeam" type="button">
           Team <span class="count" id="teamCount">0</span>
         </button>
@@ -194,6 +200,50 @@
           <h2 class="admin-title">Richieste dal form</h2>
           <p class="admin-desc">Ordinate dalla più recente. Solo gli admin possono leggerle.</p>
           <div class="admin-list" id="leadsList"></div>
+        </div>
+      </div>
+
+      <!-- ---------- Soci ---------- -->
+      <div class="admin-tabpanel" id="panelMembers" role="tabpanel" aria-labelledby="tabMembers" hidden>
+        <div class="admin-panel">
+          <div class="admin-panel-head">
+            <h2 class="admin-title">Soci registrati</h2>
+            <div class="chips" id="memberFilters" role="group" aria-label="Filtra per stato"></div>
+          </div>
+          <p class="admin-desc">
+            Attiva un socio solo dopo aver verificato <strong>tesseramento e certificato
+            medico</strong>. Finché è in attesa non può prenotare nulla.
+          </p>
+          <div class="admin-list" id="membersList"></div>
+        </div>
+      </div>
+
+      <!-- ---------- Classi ---------- -->
+      <div class="admin-tabpanel" id="panelSessions" role="tabpanel" aria-labelledby="tabSessions" hidden>
+        <div class="admin-columns">
+
+          <div class="admin-panel">
+            <h2 class="admin-title">Apri le prenotazioni</h2>
+            <p class="admin-desc">
+              Crea le classi prenotabili a partire dal palinsesto. Le classi già esistenti
+              non vengono toccate: iscritti e capienza restano come sono.
+            </p>
+            <button type="button" class="btn btn-primary btn-block" id="generateBtn">Genera calendario</button>
+            <p class="form-status" id="generateStatus" role="status" aria-live="polite"></p>
+
+            <div class="owner-note">
+              <strong>Capienza predefinita</strong> — CrossFit Class <span id="capCF">–</span> posti,
+              HYROX <span id="capHYROX">–</span>. Si modifica in <code>js/firebase/config.js</code>,
+              oppure classe per classe qui a fianco.
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <h2 class="admin-title">Prossime classi</h2>
+            <p class="admin-desc">Clicca una classe per vedere e gestire gli iscritti.</p>
+            <div class="admin-list" id="sessionsList"></div>
+          </div>
+
         </div>
       </div>
 

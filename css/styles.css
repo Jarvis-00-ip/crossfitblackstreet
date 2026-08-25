@@ -1279,3 +1279,7 @@ h1, h2, h3, h4 {
   .media-tag { left: 12px; }
   .event-card { padding: 24px 20px; }
 }
+
+/* Area soci: distinta dalle ancore di pagina, porta altrove. */
+.nav-link-area { color: var(--accent-2); }
+.nav-link-area::after { background: var(--accent-2); }

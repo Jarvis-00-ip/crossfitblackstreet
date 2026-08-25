@@ -1,0 +1,122 @@
+/* =========================================================================
+   area.css — Area soci. Estende styles.css e admin.css.
+   ========================================================================= */
+
+.login-foot {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.login-foot a { color: var(--accent-2); text-decoration: underline; }
+
+/* ---------- Calendario prenotabile ---------- */
+.day-block + .day-block { margin-top: 26px; }
+
+.day-block-title {
+  font-size: 1.25rem;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: #dcdce2;
+}
+
+.slot-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.slot-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  transition: border-color 0.25s var(--ease), background-color 0.25s var(--ease);
+}
+.slot-card.type-HYROX { border-left-color: var(--hyrox); }
+.slot-card:hover { background: rgba(255, 255, 255, 0.05); }
+.slot-card.is-mine {
+  border-color: rgba(255, 61, 23, 0.5);
+  background: var(--accent-soft);
+}
+.slot-card.is-full { opacity: 0.55; }
+
+.slot-card-main { display: flex; flex-direction: column; min-width: 0; }
+.slot-card-time {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+}
+.slot-card-type {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--accent);
+}
+.slot-card.type-HYROX .slot-card-type { color: var(--hyrox); }
+
+.slot-card-seats {
+  margin-left: auto;
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.slot-card-seats.is-full { color: #ff8a8a; }
+
+.slot-card .mini-btn { flex: none; }
+.slot-card .mini-btn:disabled { opacity: 0.45; cursor: default; }
+.slot-card .mini-btn:disabled:hover { border-color: var(--line-strong); color: inherit; }
+
+@media (max-width: 480px) {
+  .slot-cards { grid-template-columns: 1fr; }
+}
+
+/* ---------- Certificato medico ---------- */
+.cert-card {
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+.cert-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cert-title { font-size: 1.2rem; margin: 0; }
+.cert-note { font-size: 0.86rem; margin: 10px 0 14px; }
+
+.cert-drop {
+  display: block;
+  padding: 16px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--muted);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition: border-color 0.25s var(--ease), color 0.25s var(--ease);
+}
+.cert-drop:hover { border-color: var(--accent); color: var(--text); }
+.cert-drop input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.cert-preview {
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+}
+.cert-preview img { width: 100%; max-height: 320px; object-fit: contain; }

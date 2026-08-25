@@ -338,3 +338,64 @@
   color: var(--muted);
 }
 .owner-note strong { color: var(--hyrox); }
+
+/* ---------- Classi e iscritti ---------- */
+.session-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.session-when {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.roster {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  display: grid;
+  gap: 8px;
+}
+.roster-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.roster-row span { display: flex; flex-direction: column; min-width: 0; }
+.roster-row strong { font-size: 0.94rem; }
+.roster-row em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Verifica del certificato ---------- */
+.cert-review:not(:empty) {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.cert-figure {
+  display: block;
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+}
+.cert-figure img { width: 100%; max-height: 420px; object-fit: contain; }
