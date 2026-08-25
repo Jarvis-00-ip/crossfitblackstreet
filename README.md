@@ -185,8 +185,16 @@ regole del punto 6.
 `eur3 (europe-west)` o `europe-west8 (Milano)`.
 
 **5. Attiva il login**
-*Build → Authentication → Get started → Email/Password* → abilita. Poi *Users → Add user*:
-crea l'account dello staff con una password robusta.
+*Build → Authentication → Get started → Sign-in method*:
+
+- **Google** → abilita, scegli un nome pubblico per il progetto e l'email di supporto.
+  È il metodo consigliato: nessuna password da creare, distribuire o ricordare, e lo
+  staff entra con l'account Google che già usa.
+- **Email/Password** (facoltativo) → abilita solo se serve un accesso per chi non ha un
+  account Google. In quel caso crea l'utente da *Users → Add user*.
+
+Il pannello mostra entrambi i metodi: se ne attivi uno solo, l'altro restituisce un
+errore esplicito che dice quale provider abilitare.
 
 **6. Pubblica le Security Rules**
 Copia il contenuto di `firestore.rules` in *Firestore → Regole → Pubblica*. Oppure, con la
@@ -200,12 +208,22 @@ firebase deploy --only firestore:rules
 ```
 
 **7. Autorizza te stesso come admin**
-Avere un account **non basta**: serve un documento in `/admins` con il tuo UID. È voluto —
-così nessuno si promuove da solo creando un utente.
+Questo è il passaggio che conta di più, ed è anche quello su cui ci si blocca.
 
-- Copia l'UID da *Authentication → Users*
-- *Firestore → Avvia raccolta* → ID raccolta `admins`
-- ID documento: **incolla l'UID** · aggiungi un campo qualsiasi (es. `email`, stringa)
+**Autenticarsi ≠ essere autorizzati.** Con il login Google *chiunque* abbia un account
+Google può completare l'accesso — non c'è modo di impedirlo, ed è normale. Ciò che apre
+il pannello è un documento in `/admins` con il proprio UID, creabile solo dalla console.
+Senza quel documento le rules bloccano ogni lettura e ogni scrittura.
+
+La procedura è pensata per essere fatta al contrario, e va bene così:
+
+1. apri `admin.html` e fai **Continua con Google**
+2. il pannello ti rifiuta e ti mostra **il tuo UID con un pulsante «Copia UID»**
+3. Console Firebase → *Firestore → Avvia raccolta* → ID raccolta `admins`
+4. ID documento: **incolla l'UID** · aggiungi un campo qualsiasi (es. `email`, stringa)
+5. torna sul pannello e riaccedi: adesso entri
+
+Per aggiungere un collega si ripete dal punto 1 con il suo account.
 
 **8. Autorizza il dominio**
 *Authentication → Settings → Authorized domains* → aggiungi
@@ -235,7 +253,9 @@ dall'admin). Nessuno può rileggerli tranne gli admin: gli indirizzi dei clienti
 pubblici.
 
 `admins/{uid}` — la sola esistenza del documento concede i privilegi. Scrittura vietata a
-tutti: si aggiunge un admin solo dalla console.
+tutti, admin compresi: un amministratore si aggiunge o si revoca solo dalla console. Per
+togliere l'accesso a qualcuno basta eliminare il suo documento: ha effetto immediato,
+anche a sessione aperta, perché sono le rules a rivalutarlo a ogni richiesta.
 
 ### 7.4 Antispam
 

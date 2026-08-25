@@ -55,6 +55,21 @@
       <h1 class="admin-title">Accedi</h1>
       <p class="admin-desc">Area riservata allo staff del box.</p>
 
+      <!-- Login con Google: nessuna password da gestire per lo staff.
+           Chiunque può autenticarsi con un account Google — l'autorizzazione
+           vera resta il documento /admins/{uid} controllato dalle rules. -->
+      <button type="button" class="btn btn-ghost btn-block google-btn" id="googleBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="google-icon">
+          <path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.54 5.54 0 01-2.4 3.63v3h3.88c2.27-2.09 3.55-5.17 3.55-8.87z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.95-2.91l-3.88-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A12 12 0 0012 24z"/>
+          <path fill="#FBBC05" d="M5.27 14.29a7.2 7.2 0 010-4.58V6.62H1.29a12 12 0 000 10.76l3.98-3.09z"/>
+          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 001.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/>
+        </svg>
+        <span>Continua con Google</span>
+      </button>
+
+      <div class="login-divider"><span>oppure con email</span></div>
+
       <form class="contact-form" id="loginForm" novalidate>
         <div class="field">
           <label for="loginEmail">Email</label>
@@ -67,6 +82,21 @@
         <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Entra</button>
         <p class="form-status" id="loginStatus" role="status" aria-live="polite"></p>
       </form>
+
+      <!-- Mostrato quando l'accesso riesce ma l'account non è tra gli admin.
+           È il passaggio su cui ci si blocca sempre: qui l'UID da autorizzare
+           è già pronto da copiare. -->
+      <div class="uid-box" id="uidBox" hidden>
+        <p><strong id="uidEmail"></strong> non è tra gli amministratori.</p>
+        <p class="uid-help">
+          Per abilitarlo: Console Firebase → Firestore → raccolta <code>admins</code> →
+          nuovo documento con questo ID.
+        </p>
+        <div class="uid-row">
+          <code id="uidValue"></code>
+          <button type="button" class="mini-btn" id="uidCopy">Copia UID</button>
+        </div>
+      </div>
     </section>
 
     <!-- Stato: pannello -->

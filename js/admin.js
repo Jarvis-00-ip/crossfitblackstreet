@@ -5,12 +5,14 @@
  * `import()` dinamico: la home resta a zero dipendenze.
  *
  * Cosa permette di fare:
- *  - login staff (email + password)
+ *  - login staff con Google oppure email + password
  *  - CRUD degli eventi in bacheca, in tempo reale
  *  - consultazione delle richieste arrivate dal form di contatto
  *
- * Nota sull'autorizzazione: avere un account non basta. Serve un documento in
- * /admins con il proprio UID, creato a mano dalla console. Il controllo qui
+ * Nota sull'autorizzazione: autenticarsi non significa essere autorizzati.
+ * Con il login Google chiunque abbia un account può completare l'accesso; per
+ * entrare serve in più un documento in /admins con il proprio UID, creato a
+ * mano dalla console. Il controllo qui
  * sotto è solo per l'interfaccia — quello che conta è in `firestore.rules`,
  * perché il client è sempre manipolabile.
  */
@@ -50,6 +52,14 @@ function authMessage(code) {
     'auth/network-request-failed': 'Connessione assente. Controlla la rete.',
     'auth/unauthorized-domain':
       'Dominio non autorizzato: aggiungilo in Firebase → Authentication → Settings → Authorized domains.',
+    'auth/popup-blocked':
+      'Il browser ha bloccato la finestra di Google. Consenti i popup per questo sito e riprova.',
+    'auth/popup-closed-by-user': 'Finestra di Google chiusa prima di completare l\'accesso.',
+    'auth/cancelled-popup-request': '',
+    'auth/account-exists-with-different-credential':
+      'Questo indirizzo è già registrato con email e password: usa il form qui sotto.',
+    'auth/operation-not-allowed':
+      'Provider non attivo: abilitalo in Firebase → Authentication → Sign-in method.',
   };
   return map[code] || 'Accesso non riuscito. Riprova.';
 }
@@ -106,11 +116,21 @@ function initLogin(auth, A) {
   const form = qs('#loginForm');
   const status = qs('#loginStatus');
   const button = qs('#loginBtn');
+  const googleBtn = qs('#googleBtn');
+
+  // Ogni nuovo tentativo riparte pulito. Il reset avviene qui e non nel
+  // callback di onAuthStateChanged: quel callback scatta anche durante il
+  // signOut di un account non autorizzato, e cancellerebbe l'UID appena
+  // mostrato prima che l'utente riesca a copiarlo.
+  function startAttempt(message) {
+    qs('#uidBox').hidden = true;
+    status.className = 'form-status';
+    status.textContent = message;
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    status.className = 'form-status';
-    status.textContent = 'Accesso in corso…';
+    startAttempt('Accesso in corso…');
     button.disabled = true;
 
     try {
@@ -121,6 +141,39 @@ function initLogin(auth, A) {
       status.textContent = authMessage(error.code);
     } finally {
       button.disabled = false;
+    }
+  });
+
+  googleBtn.addEventListener('click', async () => {
+    startAttempt('Apertura di Google…');
+    googleBtn.disabled = true;
+
+    try {
+      const provider = new A.GoogleAuthProvider();
+      // `prompt: select_account` evita che il browser riusi in automatico
+      // l'unico account già collegato: al box il PC è spesso condiviso.
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await A.signInWithPopup(auth, provider);
+      status.textContent = '';
+    } catch (error) {
+      const message = authMessage(error.code);
+      status.classList.add('err');
+      status.textContent = message; // stringa vuota = popup sostituito da un altro
+    } finally {
+      googleBtn.disabled = false;
+    }
+  });
+
+  // L'UID è il dato da incollare in Firestore per abilitare un account:
+  // averlo dietro un click evita errori di trascrizione.
+  qs('#uidCopy').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(qs('#uidValue').textContent);
+      e.target.textContent = 'Copiato ✓';
+      setTimeout(() => { e.target.textContent = 'Copia UID'; }, 2000);
+    } catch {
+      // Clipboard negata (contesto non sicuro): resta selezionabile a mano.
+      window.getSelection()?.selectAllChildren(qs('#uidValue'));
     }
   });
 
@@ -156,11 +209,18 @@ function watchAuth({ auth, db, A, S }) {
     }
 
     if (!authorized) {
+      // Autenticato ma non autorizzato: sono due cose diverse, ed è voluto.
+      // Chiunque abbia un account Google può arrivare fin qui; solo un UID
+      // presente in /admins supera le rules.
+      const { email, uid } = user;
       await A.signOut(auth);
       showView('login');
-      qs('#loginStatus').className = 'form-status err';
-      qs('#loginStatus').textContent =
-        `L'account ${user.email} non è abilitato. Crea il documento admins/${user.uid} dalla Console Firebase.`;
+
+      qs('#loginStatus').className = 'form-status';
+      qs('#loginStatus').textContent = '';
+      qs('#uidEmail').textContent = email || 'Questo account';
+      qs('#uidValue').textContent = uid;
+      qs('#uidBox').hidden = false;
       return;
     }
 

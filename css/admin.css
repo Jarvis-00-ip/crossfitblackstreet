@@ -241,3 +241,76 @@
   .field-row { grid-template-columns: 1fr; }
   .field.checks { padding-top: 0; }
 }
+
+/* ---------- Login con provider ---------- */
+.google-btn {
+  gap: 12px;
+  background: #fff;
+  color: #1f1f1f;
+  border-color: #fff;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.google-btn:hover {
+  background: #f1f1f3;
+  border-color: #f1f1f3;
+  color: #1f1f1f;
+  transform: translateY(-3px);
+}
+.google-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+.google-icon { width: 19px; height: 19px; flex: none; }
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ---------- Riquadro UID da autorizzare ---------- */
+.uid-box {
+  margin-top: 22px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  background: var(--hyrox-soft);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+.uid-box p { margin: 0 0 8px; color: #e8dcc4; }
+.uid-box strong { color: var(--hyrox); }
+.uid-box .uid-help { font-size: 0.82rem; color: var(--muted); }
+.uid-box code {
+  font-size: 0.82rem;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.uid-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.uid-row code {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
