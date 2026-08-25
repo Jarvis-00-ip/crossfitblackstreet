@@ -117,7 +117,18 @@ condivisa fra le pagine dello stesso dominio.
 `admin.html?staff=1` mostra il riquadro con l'UID: serve solo a creare il
 primissimo amministratore di un progetto nuovo.
 
-### 2.7 Degradazione graduale, sempre
+### 2.7 Certificato approvato ≠ socio attivo
+
+Sono due semafori distinti, e restano distinti: `certStatus` riguarda il
+certificato medico, `status` riguarda il tesseramento. Un socio con certificato
+valido ma quota non pagata non deve poter prenotare.
+
+Approvando un certificato il pannello **chiede** se attivare anche il profilo,
+perché nella pratica quasi sempre si vuole fare entrambe le cose — ma la
+domanda resta, con la possibilità di rispondere no. Non unire i due campi:
+si perderebbe la distinzione senza guadagnare nulla che la domanda non dia già.
+
+### 2.8 Degradazione graduale, sempre
 
 Se Firestore non risponde, la bacheca eventi ricade su `js/data.js` e il
 visitatore non se ne accorge. Se `apiKey` è vuota, il sito torna a essere
@@ -188,6 +199,7 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Area soci: registrazione, prenotazione classi, disdetta
 - [x] Certificato medico: caricamento con compressione, verifica, scadenza
 - [x] Smistamento automatico soci ↔ staff, con guardia anti-rimbalzo
+- [x] Approvazione certificato che propone anche l'attivazione del socio
 
 ### Da fare, in ordine di urgenza
 

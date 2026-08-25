@@ -188,7 +188,21 @@ function watchAuth({ auth, db, A, S }) {
         certCards.forEach((card) => card.update(profile));
 
         if (profile.status === 'blocked') return showView('blocked');
-        if (profile.status !== 'active') return showView('pending');
+
+        if (profile.status !== 'active') {
+          // Dire a che punto è la pratica evita il sospetto che la richiesta
+          // sia finita nel vuoto — e che il socio riscriva su WhatsApp.
+          const desc = qs('#pendingDesc');
+          if (desc) {
+            desc.textContent = {
+              none: 'Carica qui sotto il certificato medico: è il passaggio che manca per attivare il profilo.',
+              pending: 'Documento ricevuto. Lo staff verifica tesseramento e certificato medico, poi potrai prenotare da qui.',
+              approved: 'Certificato approvato ✓ — manca solo l\'attivazione da parte dello staff. Ci siamo quasi.',
+              rejected: 'Il certificato è stato respinto: caricane uno nuovo qui sotto.',
+            }[profile.certStatus || 'none'];
+          }
+          return showView('pending');
+        }
 
         showView('booking');
         if (!stopBookings) stopBookings = initBooking({ db, S, user, profile });

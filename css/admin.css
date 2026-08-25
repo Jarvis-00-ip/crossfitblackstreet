@@ -399,3 +399,11 @@
   background: #000;
 }
 .cert-figure img { width: 100%; max-height: 420px; object-fit: contain; }
+
+/* Suggerimento operativo: cosa manca per completare la pratica. */
+.admin-row-hint {
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--hyrox);
+}

@@ -658,6 +658,20 @@ function initMembers({ db, S }) {
         return;
       }
       if (match) patch.certExpiresAt = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+
+      // Certificato approvato e socio ancora in attesa sono due cose diverse:
+      // il certificato medico non è il tesseramento. Ma chi approva un
+      // documento quasi sempre vuole anche far entrare la persona, e senza
+      // questa domanda il socio resterebbe bloccato su "richiesta inviata"
+      // senza che nessuno capisca perché.
+      if ((member.status || 'pending') !== 'active') {
+        const alsoActivate = window.confirm(
+          `Certificato approvato.\n\nAttivare anche il profilo di ${member.name || member.email}, ` +
+            'così può prenotare le classi?\n\n' +
+            'Annulla se il tesseramento non è ancora in regola: il socio resterà in attesa.'
+        );
+        if (alsoActivate) patch.status = 'active';
+      }
     } else {
       const reason = window.prompt('Motivo del rifiuto (lo vedrà il socio):', 'documento illeggibile');
       if (reason === null) return;
@@ -723,6 +737,9 @@ function initMembers({ db, S }) {
           }),
         ]),
       ]),
+      status === 'pending' && certStatus === 'approved'
+        ? el('p', { class: 'admin-row-hint', text: '→ Certificato approvato: manca solo l\'attivazione del profilo.' })
+        : null,
       el('p', {
         class: 'admin-row-meta',
         text: [
