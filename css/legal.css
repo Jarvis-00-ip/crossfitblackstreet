@@ -1,0 +1,257 @@
+/**
+ * legal.css — Pagine di testo lungo (informativa privacy).
+ *
+ * Un documento legale si legge, non si scorre: colonna stretta, righe alte,
+ * contrasto pieno. Il resto del sito è volutamente aggressivo, qui no.
+ */
+
+.legal-page {
+  padding: clamp(2.5rem, 6vw, 4.5rem) 0 4rem;
+}
+
+.legal-container {
+  max-width: 46rem;
+}
+
+.legal-kicker {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.6rem;
+}
+
+.legal-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 5vw, 2.7rem);
+  line-height: 1.05;
+  text-transform: uppercase;
+  margin: 0 0 0.8rem;
+}
+
+.legal-meta {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin-bottom: 2.2rem;
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-page h2 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 2.4rem 0 0.7rem;
+  padding-left: 0.85rem;
+  border-left: 3px solid var(--accent);
+}
+
+.legal-page h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--text);
+}
+
+.legal-page p {
+  line-height: 1.75;
+  color: var(--text-soft);
+  margin: 0 0 0.9rem;
+}
+
+.legal-list {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+  color: var(--text-soft);
+  line-height: 1.75;
+}
+
+.legal-list li { margin-bottom: 0.45rem; }
+
+/* Riquadri di sintesi: il primo riassume, il secondo avverte. */
+.legal-callout {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0.4rem;
+  padding: 1.1rem 1.2rem;
+  margin: 1.6rem 0 2rem;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+.legal-callout.warn {
+  border-left-color: #ffb020;
+}
+
+.legal-callout strong { color: var(--text); }
+
+/* Le tabelle scorrono da sole sui telefoni: nessuna pagina deve scorrere
+   in orizzontale per colpa di una tabella. */
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8rem 0 1.4rem;
+  font-size: 0.92rem;
+  display: block;
+  overflow-x: auto;
+}
+
+.legal-table thead th {
+  background: var(--surface-2, #17171b);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.legal-table td {
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  color: var(--text-soft);
+  line-height: 1.6;
+  min-width: 9rem;
+}
+
+.legal-note {
+  font-size: 0.88rem;
+  color: var(--muted);
+  background: rgba(255, 176, 32, 0.07);
+  border: 1px dashed rgba(255, 176, 32, 0.4);
+  border-radius: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  margin: 0.8rem 0 1.2rem;
+}
+
+.legal-back {
+  margin-top: 2.8rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------------ *
+ * Banner del consenso
+ * ------------------------------------------------------------------ */
+
+.consent-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: rgba(12, 12, 15, 0.97);
+  border-top: 2px solid var(--accent);
+  backdrop-filter: blur(6px);
+  animation: consent-in 0.28s ease-out;
+}
+
+@keyframes consent-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .consent-banner { animation: none; }
+}
+
+.consent-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1rem 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+}
+
+.consent-text {
+  flex: 1 1 22rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.consent-text strong { color: var(--text); }
+
+.consent-text a {
+  color: var(--accent);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+/* I due pulsanti hanno lo stesso peso: un rifiuto meno visibile
+   dell'accettazione renderebbe il consenso non libero, quindi non valido. */
+.consent-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+}
+
+.consent-actions .btn {
+  font-size: 0.82rem;
+  padding: 0.6rem 1rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .consent-actions { width: 100%; }
+  .consent-actions .btn { flex: 1 1 0; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Casella di consenso nei moduli
+ * ------------------------------------------------------------------ *
+ * Definita qui perché serve anche alla home, che non carica admin.css.
+ * Deve battere `.field label` di styles.css, pensato per le etichette in
+ * maiuscolo dei campi obbligatori: un consenso scritto in maiuscolo con
+ * l'asterisco arancione sarebbe illeggibile.
+ */
+.field .check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.field .check span { color: inherit; margin-left: 0; }
+
+.field .check a { color: var(--accent); text-decoration: underline; }
+
+.field .check input {
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Il riquadro rosso su una casella si vede meglio del bordo di un input. */
+.field.invalid .check { color: #ff8a6a; }
+
+/* ------------------------------------------------------------------ *
+ * Tenuta senza i caratteri di Google
+ * ------------------------------------------------------------------ *
+ * Chi sceglie «solo il necessario» vede il sito con i caratteri di sistema,
+ * più larghi del Barlow Condensed: i pulsanti tarati sul carattere stretto
+ * andavano a capo. Meglio un pulsante largo di uno spezzato in due righe.
+ */
+.nav-cta,
+.consent-actions .btn,
+.btn.btn-sm {
+  white-space: nowrap;
+}

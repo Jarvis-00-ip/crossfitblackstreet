@@ -7,10 +7,12 @@
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#0b0b0d" />
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- I caratteri di Google NON si caricano da qui: partirebbero prima che il
+       visitatore possa dire la sua, e il suo indirizzo IP arriverebbe a Google
+       comunque. Li aggiunge js/consent.js, solo dopo un consenso esplicito.
+       Senza consenso valgono le alternative di sistema dichiarate in styles.css. -->
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/legal.css" />
   <link rel="stylesheet" href="css/admin.css" />
 </head>
 <body class="admin-body">
@@ -341,6 +343,18 @@
 
     <p class="admin-error" id="globalError" hidden></p>
   </main>
+
+  <!-- Il collegamento all'informativa deve esserci su ogni pagina che raccoglie
+       dati, non solo sulla home: qui si caricano certificati medici. -->
+  <footer class="site-footer">
+    <div class="container footer-bottom">
+      <p>© <span id="year"></span> CrossFit Black Street</p>
+      <p class="legal">
+        <a href="privacy.html">Informativa privacy</a> ·
+        <a href="#" data-riapri-consenso>Preferenze privacy</a>
+      </p>
+    </div>
+  </footer>
 
   <script type="module" src="js/admin.js"></script>
 </body>

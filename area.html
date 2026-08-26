@@ -7,10 +7,12 @@
   <meta name="description" content="Area riservata ai soci di CrossFit Black Street: prenota le classi CrossFit e HYROX." />
   <meta name="theme-color" content="#0b0b0d" />
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- I caratteri di Google NON si caricano da qui: partirebbero prima che il
+       visitatore possa dire la sua, e il suo indirizzo IP arriverebbe a Google
+       comunque. Li aggiunge js/consent.js, solo dopo un consenso esplicito.
+       Senza consenso valgono le alternative di sistema dichiarate in styles.css. -->
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/legal.css" />
   <link rel="stylesheet" href="css/admin.css" />
   <link rel="stylesheet" href="css/area.css" />
 </head>
@@ -83,6 +85,25 @@
           <label for="regPhone">Telefono</label>
           <input type="tel" id="regPhone" maxlength="30" autocomplete="tel" placeholder="Facoltativo" />
         </div>
+        <div class="field">
+          <label class="check" for="regPrivacy">
+            <input type="checkbox" id="regPrivacy" required />
+            <span>Ho letto l'<a href="privacy.html" target="_blank" rel="noopener">informativa privacy</a>
+            e acconsento al trattamento dei miei dati per l'iscrizione e la gestione delle
+            prenotazioni.<span aria-hidden="true">*</span></span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="check" for="regHealth">
+            <input type="checkbox" id="regHealth" required />
+            <span>Acconsento espressamente al trattamento del mio <strong>certificato medico</strong>,
+            che è un dato relativo alla salute, per la sola verifica dell'idoneità
+            sportiva.<span aria-hidden="true">*</span></span>
+          </label>
+        </div>
+        <p class="field-error" data-error-for="regConsensi"></p>
+
         <button type="submit" class="btn btn-primary btn-block" id="regBtn">Invia richiesta</button>
         <p class="form-status" id="regStatus" role="status" aria-live="polite"></p>
       </form>
@@ -179,6 +200,18 @@
 
     <p class="admin-error" id="globalError" hidden></p>
   </main>
+
+  <!-- Il collegamento all'informativa deve esserci su ogni pagina che raccoglie
+       dati, non solo sulla home: qui si caricano certificati medici. -->
+  <footer class="site-footer">
+    <div class="container footer-bottom">
+      <p>© <span id="year"></span> CrossFit Black Street</p>
+      <p class="legal">
+        <a href="privacy.html">Informativa privacy</a> ·
+        <a href="#" data-riapri-consenso>Preferenze privacy</a>
+      </p>
+    </div>
+  </footer>
 
   <!-- Esito delle azioni, ancorato allo schermo: in fondo al documento
        sarebbe invisibile con due settimane di calendario aperte. -->

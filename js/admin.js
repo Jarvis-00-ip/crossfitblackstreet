@@ -29,6 +29,7 @@ import { SCHEDULE, CLASS_TYPES } from './data.js';
 import { expandSchedule, asDate, dateKey, onMidnight, daysAgo } from './session-id.js';
 import { toDataUrl, humanSize } from './upload.js';
 import { redirectOnce, clearBounce } from './redirect.js';
+import { initConsent } from './consent.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -107,6 +108,8 @@ const sessionFmt = new Intl.DateTimeFormat('it-IT', {
  * ------------------------------------------------------------------ */
 
 async function boot() {
+  initConsent();
+
   if (!isConfigured()) {
     showView('setup');
     return;

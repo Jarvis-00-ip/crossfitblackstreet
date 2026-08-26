@@ -14,6 +14,7 @@
 
 import { COLLECTIONS, isConfigured } from './config.js';
 import { createDocument } from './rest.js';
+import { VERSIONE_CONSENSO } from '../consent.js';
 
 const RATE_LIMIT_KEY = 'cfbs:lastLeadAt';
 const RATE_LIMIT_MS = 60_000;
@@ -52,6 +53,10 @@ export async function saveLead({ name, email, message }) {
       email: email.trim().toLowerCase(),
       message: message.trim(),
       source: 'sito-web',
+      // Versione dell'informativa accettata al momento dell'invio. Senza
+      // traccia di *quale* testo è stato accettato, il consenso non è
+      // dimostrabile: e un consenso che non si può dimostrare non vale.
+      privacyVersion: VERSIONE_CONSENSO,
       createdAt: new Date(),
     });
 

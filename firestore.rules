@@ -166,7 +166,11 @@ service cloud.firestore {
 
       function validLead() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['name', 'email', 'message', 'source', 'createdAt'])
+        return d.keys().hasOnly(['name', 'email', 'message', 'source', 'privacyVersion', 'createdAt'])
+          // Traccia di QUALE informativa è stata accettata: un consenso senza
+          // versione non è dimostrabile, e quindi in pratica non vale.
+          && d.privacyVersion is int
+          && d.privacyVersion > 0
           && isString(d.name, 2, 80)
           && isString(d.email, 5, 120)
           && d.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
@@ -199,8 +203,18 @@ service cloud.firestore {
         && request.auth.uid == uid
         && verifiedEmail()
         && request.resource.data.keys().hasOnly([
-             'name', 'email', 'phone', 'status', 'createdAt', 'certStatus', 'certUploadedAt'
+             'name', 'email', 'phone', 'status', 'createdAt', 'certStatus', 'certUploadedAt',
+             'privacyVersion', 'healthConsentAt'
            ])
+        // I consensi non sono facoltativi e non sono modificabili dopo:
+        // servono per l'iscrizione (privacyVersion) e per il certificato
+        // medico, che è un dato sanitario (healthConsentAt, art. 9 GDPR).
+        // Sono richiesti QUI, alla creazione, perché è l'unico momento in cui
+        // il socio li presta: consentire un profilo senza consensi vorrebbe
+        // dire raccogliere dati senza base giuridica.
+        && request.resource.data.privacyVersion is int
+        && request.resource.data.privacyVersion > 0
+        && request.resource.data.healthConsentAt is timestamp
         && request.resource.data.get('certStatus', 'none') in ['none', 'pending']
         && request.resource.data.status == 'pending'
         && request.resource.data.email == myEmail()

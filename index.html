@@ -13,10 +13,12 @@
   <meta property="og:image" content="assets/img/hero.jpg" />
 
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- I caratteri di Google NON si caricano da qui: partirebbero prima che il
+       visitatore possa dire la sua, e il suo indirizzo IP arriverebbe a Google
+       comunque. Li aggiunge js/consent.js, solo dopo un consenso esplicito.
+       Senza consenso valgono le alternative di sistema dichiarate in styles.css. -->
   <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/legal.css" />
 </head>
 <body>
   <a class="skip-link" href="#main">Salta al contenuto</a>
@@ -439,6 +441,15 @@
                 <p class="field-error" data-error-for="message"></p>
               </div>
 
+              <div class="field">
+                <label class="check" for="privacyOk">
+                  <input type="checkbox" id="privacyOk" name="privacyOk" required />
+                  <span>Ho letto l'<a href="privacy.html" target="_blank" rel="noopener">informativa privacy</a>
+                  e acconsento al trattamento dei miei dati per ricevere una risposta.<span aria-hidden="true">*</span></span>
+                </label>
+                <p class="field-error" data-error-for="privacyOk"></p>
+              </div>
+
               <button type="submit" class="btn btn-primary btn-block">Invia messaggio</button>
               <p class="form-status" id="formStatus" role="status" aria-live="polite"></p>
             </form>
@@ -491,7 +502,11 @@
 
     <div class="container footer-bottom">
       <p>© <span id="year"></span> CrossFit Black Street. Tutti i diritti riservati.</p>
-      <p class="legal">CrossFit® e HYROX® sono marchi registrati dei rispettivi proprietari.</p>
+      <p class="legal">
+        <a href="privacy.html">Informativa privacy</a> ·
+        <a href="#" data-riapri-consenso>Preferenze privacy</a><br />
+        CrossFit® e HYROX® sono marchi registrati dei rispettivi proprietari.
+      </p>
     </div>
   </footer>
 

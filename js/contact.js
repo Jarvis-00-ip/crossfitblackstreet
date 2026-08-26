@@ -24,7 +24,19 @@ const RULES = {
   name: (v) => (v.trim().length >= 2 ? '' : 'Inserisci il tuo nome (min. 2 caratteri).'),
   email: (v) => (EMAIL_RE.test(v.trim()) ? '' : 'Inserisci un indirizzo email valido.'),
   message: (v) => (v.trim().length >= 10 ? '' : 'Scrivi almeno 10 caratteri.'),
+  // Il consenso non è un campo di testo: si valida sullo stato della casella,
+  // non sul valore. Vedi `valore()` più sotto.
+  privacyOk: (v) => (v === 'on' ? '' : 'Serve il consenso per poterti rispondere.'),
 };
+
+/**
+ * Valore da validare per un campo.
+ * Una casella non spuntata non compare affatto nei dati del modulo: senza
+ * questa distinzione la validazione leggerebbe sempre 'on'.
+ */
+function valore(input) {
+  return input.type === 'checkbox' ? (input.checked ? 'on' : '') : input.value;
+}
 
 function setFieldError(input, message) {
   const field = input.closest('.field');
@@ -63,10 +75,10 @@ export function initContact() {
 
   // Rivalida mentre l'utente corregge un campo già segnalato.
   inputs.forEach((input) => {
-    input.addEventListener('blur', () => setFieldError(input, RULES[input.name](input.value)));
+    input.addEventListener('blur', () => setFieldError(input, RULES[input.name](valore(input))));
     input.addEventListener('input', () => {
       if (input.closest('.field')?.classList.contains('invalid')) {
-        setFieldError(input, RULES[input.name](input.value));
+        setFieldError(input, RULES[input.name](valore(input)));
       }
     });
   });
@@ -86,7 +98,7 @@ export function initContact() {
       return;
     }
 
-    const results = inputs.map((input) => setFieldError(input, RULES[input.name](input.value)));
+    const results = inputs.map((input) => setFieldError(input, RULES[input.name](valore(input))));
     if (results.includes(false)) {
       status.classList.add('err');
       status.textContent = 'Controlla i campi evidenziati.';

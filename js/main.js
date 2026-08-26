@@ -10,8 +10,13 @@ import { initContact } from './contact.js';
 import { initHeader, initScrollSpy, initReveal, initYear, initPhotoFallback } from './ui.js';
 import { renderSenzaRespiro, renderInstagram } from './senza-respiro.js';
 import { loadEvents } from './firebase/events-repo.js';
+import { initConsent } from './consent.js';
 
 function boot() {
+  // 0. Consenso: per primo, perché decide se i caratteri di Google e i post di
+  //    Instagram possono essere caricati. Chiederlo dopo servirebbe a poco.
+  initConsent();
+
   // 1. Contenuti generati dai dati
   renderServices(qs('#servicesGrid'));
   renderPartner(qs('#partnerCard'));

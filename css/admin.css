@@ -125,8 +125,11 @@
    obbligatori (maiuscolo + asterisco arancione). */
 .field .check {
   display: flex;
-  align-items: center;
+  /* Non `center`: i consensi privacy occupano tre righe, e una casella
+     centrata verticalmente su un paragrafo sembra staccata dal testo. */
+  align-items: flex-start;
   gap: 9px;
+  line-height: 1.5;
   font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 500;
@@ -136,7 +139,7 @@
   cursor: pointer;
 }
 .field .check span { color: inherit; margin-left: 0; }
-.field .check input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+.field .check input { width: 17px; height: 17px; margin-top: 1px; flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; }
 
 /* ---------- Liste ---------- */
 .admin-list { display: grid; gap: 10px; }

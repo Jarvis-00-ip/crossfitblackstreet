@@ -281,6 +281,47 @@ Riscrivere lo stesso numero, arrivi prima o dopo, dà sempre lo stesso
 risultato. Ogni aggiornamento ottimistico dev'essere idempotente, perché
 l'ordine di arrivo non lo decidi tu.
 
+### 2.9septies I font di Google non stanno nell'HTML, e non è una svista
+
+Un `<link>` a `fonts.googleapis.com` nell'`<head>` parte prima di qualsiasi
+banner: quando il visitatore legge la domanda, il suo indirizzo IP è già
+arrivato a Google. Chiedere un consenso dopo aver fatto la cosa per cui lo si
+chiede è teatro, non conformità.
+
+Per questo il collegamento ai caratteri viene aggiunto da `consent.js`, e solo
+dopo un sì esplicito. Senza consenso valgono le alternative di sistema già
+dichiarate in `styles.css`: il sito perde un po' di carattere, non una
+funzione. Stessa logica per i post di Instagram, che si caricano al click.
+
+Corollario da non perdere: **qualunque risorsa esterna aggiunta in futuro** —
+una mappa, un video incorporato, un widget di recensioni — va trattata allo
+stesso modo, altrimenti il banner diventa una bugia. `consensoEsterni()` in
+`consent.js` risponde alla domanda, e l'evento `consenso-cambiato` permette di
+caricare la cosa senza far ricaricare la pagina.
+
+Nota di stile emersa qui: senza il Barlow Condensed i caratteri di sistema sono
+più larghi, e i pulsanti tarati sul condensato andavano a capo. Da qui il
+`white-space: nowrap` in fondo a `legal.css`. Chi rifiuta non deve vedere un
+sito rotto.
+
+### 2.9octies I consensi sono due, e sono richiesti dalle regole
+
+L'iscrizione all'area soci chiede **due** spunte separate, e non è pignoleria:
+le basi giuridiche sono diverse. La prima copre il trattamento ordinario dei
+dati (art. 6.1.b, esecuzione del contratto); la seconda copre il certificato
+medico, che è un dato sanitario e richiede consenso esplicito e separato
+(art. 9.2.a). Una casella sola per entrambi non sarebbe un consenso valido.
+
+Ed è il **server** a pretenderli: le regole rifiutano la creazione di un
+profilo senza `privacyVersion` e `healthConsentAt`. Se il controllo stesse solo
+nella pagina, basterebbe saltare la pagina per creare un profilo privo di base
+giuridica. Stesso ragionamento per `privacyVersion` sui lead.
+
+Il numero di versione serve a sapere *quale testo* è stato accettato: se
+l'informativa cambia, si alza `VERSIONE_CONSENSO` in `consent.js`, il banner
+ricompare a tutti e i nuovi consensi portano il numero nuovo. Un consenso di
+cui non si può dimostrare il contenuto, in pratica, non vale.
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -339,6 +380,19 @@ cambiano lì, senza toccare HTML o CSS.
 
 ---
 
+## 3bis. File aggiunti con il pacchetto privacy
+
+```
+privacy.html        informativa art. 13 GDPR, con i punti [DA COMPLETARE]
+                    che solo la società può riempire
+css/legal.css       pagine di testo lungo, banner del consenso, caselle
+js/consent.js       banner, memoria della scelta, caricamento condizionato
+                    dei font, evento `consenso-cambiato`
+```
+
+Campi nuovi su Firestore: `users.privacyVersion`, `users.healthConsentAt`,
+`leads.privacyVersion`. Tutti e tre sono **obbligatori nelle regole**.
+
 ## 4. Modello dati
 
 | Collection | ID | Contenuto |
@@ -382,6 +436,9 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Storico del socio: le proprie ultime 2 settimane, nessun nome altrui
 - [x] Rotazione giornaliera automatica, anche a pagina lasciata aperta
 - [x] Prenotazione che si vede subito, anche se il realtime tace (§2.9sexies)
+- [x] Informativa privacy, banner del consenso, blocco dei font di Google
+- [x] Consenso obbligatorio su modulo contatti e iscrizione (doppio: dati
+      ordinari e dati sanitari), preteso dalle regole del server
 
 ### Da fare
 
@@ -391,9 +448,14 @@ Ordinato per quando fa male non averlo, non per quanto è divertente farlo.
 
 - [ ] **Pubblicare `firestore.rules` in console.** Finché non è fatto, area soci
       e prenotazioni non funzionano. È il blocco numero uno.
-- [ ] **Privacy e GDPR.** Il sito archivia nome, email e **certificati medici**
-      — dati sanitari, categoria particolare (art. 9). Servono informativa,
-      consenso esplicito, politica di conservazione e cancellazione.
+- [ ] **Privacy: completare ciò che solo la società può dare.** La parte
+      tecnica c'è (informativa, banner, doppio consenso preteso dalle regole,
+      cancellazione automatica delle presenze a 30 giorni). Restano i quattordici
+      punti `[DA COMPLETARE]` in `privacy.html` — ragione sociale, indirizzo,
+      email per i diritti, fornitore dell'hosting, tempi di conservazione — e
+      **la revisione di un consulente**, obbligatoria: si trattano dati
+      sanitari. Va inoltre accettato il Data Processing Amendment di Firebase
+      dalla console Google.
 
 #### Fase 2 — far tornare le persone
 

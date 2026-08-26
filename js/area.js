@@ -24,6 +24,7 @@ import { whatsappLink, SCHEDULE, CLASS_TYPES } from './data.js';
 import { expandSchedule, asDate, onMidnight, daysAgo } from './session-id.js';
 import { prepareDocument, toDataUrl, humanSize, MAX_BYTES } from './upload.js';
 import { redirectOnce, clearBounce } from './redirect.js';
+import { initConsent, VERSIONE_CONSENSO } from './consent.js';
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 const DAYS_AHEAD = 14;
@@ -88,6 +89,8 @@ function authMessage(code) {
  * ------------------------------------------------------------------ */
 
 async function boot() {
+  initConsent();
+
   qsa('[data-wa-link]').forEach((a) => {
     a.href = whatsappLink('Ciao! Vi scrivo dall\'area soci del sito.');
     a.target = '_blank';
@@ -267,12 +270,30 @@ function initRegister({ db, S, user }) {
     e.preventDefault();
     const name = nameInput.value.trim();
     const errorEl = qs('[data-error-for="regName"]');
+    const consensiEl = qs('[data-error-for="regConsensi"]');
     errorEl.textContent = '';
+    if (consensiEl) consensiEl.textContent = '';
     status.className = 'form-status';
 
     if (name.length < 2) {
       errorEl.textContent = 'Inserisci nome e cognome.';
       nameInput.focus();
+      return;
+    }
+
+    // I due consensi sono distinti perché lo sono le basi giuridiche: il primo
+    // copre l'iscrizione, il secondo il certificato medico, che è un dato
+    // sanitario e richiede un sì esplicito e separato. Una casella sola per
+    // entrambi non sarebbe un consenso valido.
+    const privacyOk = qs('#regPrivacy')?.checked;
+    const healthOk = qs('#regHealth')?.checked;
+    if (!privacyOk || !healthOk) {
+      if (consensiEl) {
+        consensiEl.textContent = !privacyOk
+          ? 'Serve il consenso al trattamento dei dati per completare l\'iscrizione.'
+          : 'Senza il consenso sul certificato medico non possiamo verificare l\'idoneità sportiva.';
+      }
+      (!privacyOk ? qs('#regPrivacy') : qs('#regHealth'))?.focus();
       return;
     }
 
@@ -287,6 +308,11 @@ function initRegister({ db, S, user }) {
         // Sempre 'pending': l'attivazione la decide lo staff dopo aver visto
         // tesseramento e certificato medico. Le rules rifiutano altri valori.
         status: 'pending',
+        // Cosa è stato accettato e quando. Un consenso di cui non resta traccia
+        // è come non averlo chiesto: davanti a una contestazione non si può
+        // dimostrare né il testo accettato né il momento.
+        privacyVersion: VERSIONE_CONSENSO,
+        healthConsentAt: S.serverTimestamp(),
         createdAt: S.serverTimestamp(),
       });
       showView('pending');
