@@ -296,40 +296,105 @@ service cloud.firestore {
         return /databases/$(database)/documents/bookings/$(request.auth.uid + '_' + sessionId);
       }
 
-      function onlyBookedChanged() {
-        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['booked']);
+      function waitRef() {
+        return /databases/$(database)/documents/waitlist/$(request.auth.uid + '_' + sessionId);
       }
 
-      // Prenotazione: +1 posto, mai oltre la capienza, mai su una classe già
-      // iniziata, e SOLO se nella stessa transazione nasce davvero la
-      // prenotazione corrispondente. Senza existsAfter() si potrebbe gonfiare
-      // il contatore per far risultare pieno un corso.
+      // Scorciatoie: `after` è come sarà il documento, `before` com'è adesso.
+      function after() { return request.resource.data; }
+      function before() { return resource.data; }
+
+      function changes(keys) {
+        return after().diff(before()).affectedKeys().hasOnly(keys);
+      }
+
+      function bookable() {
+        return before().startsAt > request.time
+          && before().get('cancelled', false) == false;
+      }
+
+      /* --- prenotazione diretta: c'è posto e nessuno è in coda --- */
       function takesSeat() {
         return isActiveMember()
-          && onlyBookedChanged()
-          && request.resource.data.booked == resource.data.booked + 1
-          && request.resource.data.booked <= resource.data.capacity
-          && resource.data.startsAt > request.time
+          && changes(['booked'])
+          && bookable()
+          && after().booked == before().booked + 1
+          && after().booked <= before().capacity
+          // Se qualcuno è in lista d'attesa, il posto liberato è suo: chi
+          // arriva dopo non può scavalcarlo semplicemente ricaricando.
+          && before().get('waiting', 0) == 0
           && existsAfter(bookingRef());
       }
 
-      // Disdetta: -1 posto, mai sotto zero, e solo se la prenotazione sparisce
-      // davvero. Simmetrico al caso sopra: impedisce di liberare posti altrui.
+      /* --- prenotazione da lista d'attesa: si prende il posto e si esce dalla coda --- */
+      function takesSeatFromWaitlist() {
+        return isActiveMember()
+          && changes(['booked', 'waiting'])
+          && bookable()
+          && after().booked == before().booked + 1
+          && after().booked <= before().capacity
+          && after().waiting == before().waiting - 1
+          && after().waiting >= 0
+          && exists(waitRef())        // c'ero davvero
+          && !existsAfter(waitRef())  // e me ne sono tolto
+          && existsAfter(bookingRef());
+      }
+
+      /* --- disdetta: il posto torna libero ---
+         `exists(bookingRef())` non è pignoleria: senza, chiunque potrebbe
+         abbassare il contatore di una classe a cui non è iscritto, facendola
+         risultare libera e portandola in overbooking. */
       function releasesSeat() {
         return request.auth != null
-          && onlyBookedChanged()
-          && request.resource.data.booked == resource.data.booked - 1
-          && request.resource.data.booked >= 0
+          && changes(['booked'])
+          && after().booked == before().booked - 1
+          && after().booked >= 0
+          && exists(bookingRef())
           && !existsAfter(bookingRef());
+      }
+
+      /* --- lista d'attesa: ci si entra solo a classe piena --- */
+      function joinsWaitlist() {
+        return isActiveMember()
+          && changes(['waiting'])
+          && bookable()
+          && after().waiting == before().get('waiting', 0) + 1
+          && before().booked >= before().capacity
+          && !exists(bookingRef())    // chi è già dentro non si mette in coda
+          && existsAfter(waitRef());
+      }
+
+      function leavesWaitlist() {
+        return request.auth != null
+          && changes(['waiting'])
+          && after().waiting == before().waiting - 1
+          && after().waiting >= 0
+          && exists(waitRef())
+          && !existsAfter(waitRef());
+      }
+
+      /* --- interventi dello staff --- */
+      function adminAdjusts() {
+        return isAdmin()
+          && changes(['capacity', 'cancelled', 'booked', 'waiting'])
+          && after().get('capacity', 1) is int
+          && after().get('capacity', 1) >= after().get('booked', 0)
+          && after().get('cancelled', false) is bool
+          && after().get('booked', 0) >= 0
+          && after().get('waiting', 0) >= 0;
       }
 
       function validSession() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['startsAt', 'type', 'capacity', 'booked', 'createdAt'])
+        return d.keys().hasOnly([
+                 'startsAt', 'type', 'capacity', 'booked', 'waiting', 'cancelled', 'createdAt'
+               ])
           && d.startsAt is timestamp
           && d.type in ['CF', 'HYROX']
           && d.capacity is int && d.capacity > 0 && d.capacity <= 200
-          && d.booked is int && d.booked == 0;
+          && d.booked is int && d.booked == 0
+          && d.get('waiting', 0) is int && d.get('waiting', 0) == 0
+          && d.get('cancelled', false) == false;
       }
 
       // Il calendario con i posti liberi è informazione pubblica: non contiene
@@ -337,14 +402,16 @@ service cloud.firestore {
       allow read: if true;
 
       allow create: if isAdmin() && validSession();
+      // Una classe con iscritti non si cancella, si annulla: chi ha prenotato
+      // deve poterlo vedere invece di trovare il vuoto.
       allow delete: if isAdmin() && resource.data.booked == 0;
 
       allow update: if takesSeat()
+        || takesSeatFromWaitlist()
         || releasesSeat()
-        || (isAdmin()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['capacity'])
-            && request.resource.data.capacity is int
-            && request.resource.data.capacity >= resource.data.booked);
+        || joinsWaitlist()
+        || leavesWaitlist()
+        || adminAdjusts();
     }
 
     /* ---------------------------------------------------------------- *
@@ -380,12 +447,72 @@ service cloud.firestore {
       // Nulla è modificabile: si disdice e si riprenota.
       allow update: if false;
 
+      // Termine per la disdetta: due ore. Chi molla all'ultimo momento lascia
+      // un posto che nessuno può più prendere, e la lista d'attesa non fa in
+      // tempo a scorrere. Lo staff può sempre intervenire.
+      // Tenere allineato a CANCEL_CUTOFF_HOURS in js/firebase/config.js.
+      function cancelCutoff() {
+        return duration.value(2, 'h');
+      }
+
       allow delete: if request.auth != null
-        && (isAdmin() || (resource.data.uid == request.auth.uid && resource.data.startsAt > request.time))
+        && (
+          isAdmin()
+          || (resource.data.uid == request.auth.uid
+              && resource.data.startsAt > request.time + cancelCutoff())
+        )
         // Anche la disdetta deve restituire il posto: senza questo vincolo il
         // corso resterebbe pieno di prenotazioni cancellate.
         && getAfter(sessionRef(resource.data.sessionId)).data.booked
              == get(sessionRef(resource.data.sessionId)).data.booked - 1;
+    }
+
+    /* ---------------------------------------------------------------- *
+     * /waitlist — chi aspetta un posto in una classe piena
+     * ---------------------------------------------------------------- *
+     * ID composto {uid}_{sessionId} come per le prenotazioni: rende
+     * impossibile mettersi due volte in coda per la stessa classe.
+     *
+     * Nota su come funziona davvero: quando un posto si libera, NON viene
+     * assegnato automaticamente al primo della coda — servirebbe un server che
+     * scriva a nome di qualcun altro, e lasciar scrivere un client per conto
+     * terzi aprirebbe un buco molto più grande del problema che risolve.
+     * Le regole fanno una cosa più semplice e altrettanto utile: finché
+     * `waiting > 0`, il posto libero può prenderlo **solo** chi è in coda.
+     * Fra loro vale l'ordine di arrivo sul pulsante, non quello di iscrizione.
+     */
+    match /waitlist/{entryId} {
+
+      function sessionRef(sid) {
+        return /databases/$(database)/documents/sessions/$(sid);
+      }
+
+      allow get, list: if request.auth != null
+        && (isAdmin() || resource.data.uid == request.auth.uid);
+
+      allow create: if isActiveMember()
+        && entryId == request.auth.uid + '_' + request.resource.data.sessionId
+        && request.resource.data.keys().hasOnly([
+             'uid', 'sessionId', 'userName', 'userEmail', 'startsAt', 'type', 'joinedAt'
+           ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userEmail == myEmail()
+        && isString(request.resource.data.userName, 2, 80)
+        && request.resource.data.startsAt is timestamp
+        && request.resource.data.joinedAt is timestamp
+        // Il contatore deve salire nella stessa transazione, altrimenti la
+        // coda esisterebbe senza che nessuno lo sappia.
+        && getAfter(sessionRef(request.resource.data.sessionId)).data.waiting
+             == get(sessionRef(request.resource.data.sessionId)).data.get('waiting', 0) + 1;
+
+      allow update: if false;
+
+      // Si esce dalla coda per due motivi: rinuncia, oppure perché si è preso
+      // il posto. In entrambi i casi il contatore deve scendere.
+      allow delete: if request.auth != null
+        && (isAdmin() || resource.data.uid == request.auth.uid)
+        && getAfter(sessionRef(resource.data.sessionId)).data.waiting
+             == get(sessionRef(resource.data.sessionId)).data.waiting - 1;
     }
 
     /* ---------------------------------------------------------------- *

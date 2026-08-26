@@ -44,7 +44,19 @@ export const COLLECTIONS = {
   sessions: 'sessions',
   bookings: 'bookings',
   certificates: 'certificates',
+  waitlist: 'waitlist',
 };
+
+/**
+ * Ore entro cui NON si può più disdire.
+ * Senza un limite, chi molla cinque minuti prima lascia un posto che nessuno
+ * può più prendere: il danno non è la disdetta, è il posto sprecato.
+ * Va tenuto allineato a `cancelCutoff()` in firestore.rules.
+ */
+export const CANCEL_CUTOFF_HOURS = 2;
+
+/** Giorni di anticipo con cui si segnala un certificato in scadenza. */
+export const CERT_EXPIRY_WARNING_DAYS = 30;
 
 /**
  * Posti disponibili per tipo di classe, usati quando l'admin genera il

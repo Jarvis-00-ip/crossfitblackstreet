@@ -22,10 +22,10 @@
 import { qs, el } from './dom.js';
 import {
   FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured, isOwner,
-  SESSION_CAPACITY, WEEKS_TO_GENERATE,
+  SESSION_CAPACITY, WEEKS_TO_GENERATE, CERT_EXPIRY_WARNING_DAYS,
 } from './firebase/config.js';
 import { SCHEDULE, CLASS_TYPES } from './data.js';
-import { expandSchedule, asDate } from './session-id.js';
+import { expandSchedule, asDate, dateKey } from './session-id.js';
 import { toDataUrl, humanSize } from './upload.js';
 import { redirectOnce, clearBounce } from './redirect.js';
 
@@ -272,6 +272,7 @@ function watchAuth({ auth, db, A, S }) {
       initTeam({ db, S, A, auth, user }),
       initMembers({ db, S }),
       initSessions({ db, S }),
+      initToday({ db, S }),
     ];
   });
 }
@@ -549,6 +550,7 @@ function initMembers({ db, S }) {
 
   [
     { value: 'pending', label: 'Da attivare' },
+    { value: 'expiring', label: 'Certificato in scadenza' },
     { value: 'active', label: 'Attivi' },
     { value: 'blocked', label: 'Sospesi' },
     { value: 'ALL', label: 'Tutti' },
@@ -685,6 +687,25 @@ function initMembers({ db, S }) {
     }
   }
 
+  /** Avviso sulla scadenza, solo quando c'è qualcosa da fare. */
+  function expiryHint(member) {
+    const days = daysToExpiry(member);
+    if (days === null || days > CERT_EXPIRY_WARNING_DAYS) return null;
+
+    if (days < 0) {
+      return el('p', {
+        class: 'admin-row-hint is-alarm',
+        text: `⚠ Certificato scaduto da ${Math.abs(days)} giorn${Math.abs(days) === 1 ? 'o' : 'i'}: non dovrebbe allenarsi.`,
+      });
+    }
+    return el('p', {
+      class: 'admin-row-hint',
+      text: days === 0
+        ? '⚠ Il certificato scade oggi.'
+        : `⚠ Certificato in scadenza fra ${days} giorn${days === 1 ? 'o' : 'i'}.`,
+    });
+  }
+
   function row(member) {
     const status = member.status || 'pending';
     const certStatus = member.certStatus || 'none';
@@ -740,6 +761,7 @@ function initMembers({ db, S }) {
       status === 'pending' && certStatus === 'approved'
         ? el('p', { class: 'admin-row-hint', text: '→ Certificato approvato: manca solo l\'attivazione del profilo.' })
         : null,
+      expiryHint(member),
       el('p', {
         class: 'admin-row-meta',
         text: [
@@ -756,8 +778,28 @@ function initMembers({ db, S }) {
     ]);
   }
 
+  /**
+   * Giorni che mancano alla scadenza del certificato, negativi se già scaduto.
+   * `certExpiresAt` viene archiviato dall'approvazione ma finora non lo
+   * guardava nessuno: è il dato che dice chi non può più allenarsi.
+   */
+  function daysToExpiry(member) {
+    const date = asDate(member.certExpiresAt);
+    if (!date) return null;
+    return Math.ceil((date.getTime() - Date.now()) / 86400000);
+  }
+
+  function isExpiring(member) {
+    const days = daysToExpiry(member);
+    return days !== null && days <= CERT_EXPIRY_WARNING_DAYS;
+  }
+
   function render() {
-    const rows = state.members.filter((m) => state.filter === 'ALL' || (m.status || 'pending') === state.filter);
+    const rows = state.members.filter((m) => {
+      if (state.filter === 'ALL') return true;
+      if (state.filter === 'expiring') return isExpiring(m);
+      return (m.status || 'pending') === state.filter;
+    });
     list.replaceChildren(
       ...(rows.length
         ? rows.map(row)
@@ -774,12 +816,157 @@ function initMembers({ db, S }) {
 
       // Il contatore mostra chi aspetta una risposta, non il totale: è
       // l'unico numero su cui c'è qualcosa da fare.
-      qs('#membersCount').textContent =
-        String(state.members.filter((m) => (m.status || 'pending') === 'pending').length);
+      // Il contatore somma chi aspetta una risposta e chi ha il certificato in
+      // scadenza: sono le due cose su cui c'è davvero qualcosa da fare.
+      qs('#membersCount').textContent = String(
+        state.members.filter((m) => (m.status || 'pending') === 'pending' || isExpiring(m)).length
+      );
       render();
     },
     (error) => showError(`Lettura soci non riuscita: ${error.message}`)
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * Presenze del giorno
+ * ------------------------------------------------------------------ */
+
+const dayLabelFmt = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+const hourFmt = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Chi è atteso oggi, classe per classe.
+ *
+ * Diversa dalla scheda «Classi», che elenca le sessioni future per gestirle:
+ * qui serve una cosa sola, guardabile dal telefono all'ingresso — chi arriva
+ * adesso e chi arriva dopo.
+ *
+ * Una query sola per tutta la giornata invece di una per classe: le
+ * prenotazioni portano `startsAt` duplicato apposta, e un intervallo su un
+ * unico campo non richiede indici composti.
+ */
+function initToday({ db, S }) {
+  const list = qs('#todayList');
+  const nav = qs('#dayNav');
+  const state = { offset: 0, bookings: [], sessions: [] };
+  let stopDay = null;
+
+  function dayBounds(offset) {
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() + offset);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 1);
+    return { from, to };
+  }
+
+  [
+    { value: 0, label: 'Oggi' },
+    { value: 1, label: 'Domani' },
+    { value: 2, label: 'Dopodomani' },
+  ].forEach((opt) => {
+    nav.append(el('button', {
+      type: 'button',
+      class: 'chip',
+      'aria-pressed': String(state.offset === opt.value),
+      dataset: { value: String(opt.value) },
+      text: opt.label,
+      onClick: () => {
+        state.offset = opt.value;
+        [...nav.children].forEach((c) =>
+          c.setAttribute('aria-pressed', String(Number(c.dataset.value) === opt.value)));
+        subscribe();
+      },
+    }));
+  });
+
+  function render() {
+    const { from } = dayBounds(state.offset);
+    qs('#todayTitle').textContent = `Presenze · ${dayLabelFmt.format(from)}`;
+
+    if (!state.sessions.length) {
+      list.replaceChildren(el('p', { class: 'admin-empty', text: 'Nessuna classe aperta in questa giornata.' }));
+      return;
+    }
+
+    const byLesson = new Map(state.sessions.map((s) => [s.id, []]));
+    state.bookings.forEach((b) => {
+      if (byLesson.has(b.sessionId)) byLesson.get(b.sessionId).push(b);
+    });
+
+    list.replaceChildren(...state.sessions.map((session) => {
+      const people = (byLesson.get(session.id) || [])
+        .sort((a, b) => (a.userName || '').localeCompare(b.userName || ''));
+      const start = asDate(session.startsAt);
+
+      return el('article', {
+        class: `admin-row${session.cancelled ? ' is-draft' : people.length ? ' is-featured' : ''}`,
+      }, [
+        el('div', { class: 'admin-row-head' }, [
+          el('h3', {
+            class: 'admin-row-title',
+            text: `${start ? hourFmt.format(start) : '—'} · ${CLASS_TYPES[session.type]?.short || session.type}`,
+          }),
+          el('div', { class: 'pill-row' }, [
+            session.cancelled ? el('span', { class: 'pill warn', text: 'Annullata' }) : null,
+            el('span', {
+              class: `pill${people.length ? ' on' : ''}`,
+              text: `${people.length}/${session.capacity || 0}`,
+            }),
+            session.waiting ? el('span', { class: 'pill warn', text: `${session.waiting} in coda` }) : null,
+          ]),
+        ]),
+        people.length
+          ? el('ol', { class: 'attendance' }, people.map((b) =>
+              el('li', {}, [
+                el('strong', { text: b.userName || '—' }),
+                el('em', { text: b.userEmail || '' }),
+              ])))
+          : el('p', { class: 'admin-row-meta', text: 'Nessun iscritto.' }),
+      ]);
+    }));
+  }
+
+  function subscribe() {
+    if (stopDay) stopDay();
+    const { from, to } = dayBounds(state.offset);
+
+    const stopSessions = S.onSnapshot(
+      S.query(
+        S.collection(db, COLLECTIONS.sessions),
+        S.where('startsAt', '>=', from),
+        S.where('startsAt', '<', to)
+      ),
+      (snap) => {
+        state.sessions = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (asDate(a.startsAt)?.getTime() || 0) - (asDate(b.startsAt)?.getTime() || 0));
+        if (state.offset === 0) {
+          qs('#todayCount').textContent = String(state.sessions.length);
+        }
+        render();
+      },
+      (error) => showError(`Classi del giorno non leggibili: ${error.message}`)
+    );
+
+    const stopBookings = S.onSnapshot(
+      S.query(
+        S.collection(db, COLLECTIONS.bookings),
+        S.where('startsAt', '>=', from),
+        S.where('startsAt', '<', to)
+      ),
+      (snap) => {
+        state.bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        render();
+      },
+      (error) => showError(`Presenze non leggibili: ${error.message}`)
+    );
+
+    stopDay = () => { stopSessions(); stopBookings(); };
+  }
+
+  subscribe();
+  return () => { if (stopDay) stopDay(); };
 }
 
 /* ------------------------------------------------------------------ *
@@ -827,6 +1014,8 @@ function initSessions({ db, S }) {
             type: slot.type,
             capacity: SESSION_CAPACITY[slot.type] ?? 12,
             booked: 0,
+            waiting: 0,
+            cancelled: false,
             createdAt: S.serverTimestamp(),
           });
         });
@@ -840,6 +1029,56 @@ function initSessions({ db, S }) {
       status.textContent = `Generazione non riuscita: ${error.message}`;
     } finally {
       button.disabled = false;
+    }
+  });
+
+  /* ---------- chiusura straordinaria ---------- */
+
+  const closeStatus = qs('#closeStatus');
+  qs('#closeDayBtn').addEventListener('click', async () => {
+    const value = qs('#closeDate').value;
+    closeStatus.className = 'form-status';
+
+    if (!value) {
+      closeStatus.classList.add('err');
+      closeStatus.textContent = 'Scegli il giorno da chiudere.';
+      return;
+    }
+
+    const target = state.sessions.filter((session) => {
+      const start = asDate(session.startsAt);
+      return start && dateKey(start) === value && !session.cancelled;
+    });
+
+    if (!target.length) {
+      closeStatus.classList.add('err');
+      closeStatus.textContent = 'Nessuna classe attiva in quel giorno.';
+      return;
+    }
+
+    const iscritti = target.reduce((sum, s) => sum + (s.booked || 0), 0);
+    const avviso = iscritti
+      ? `\n\nAttenzione: ci sono ${iscritti} prenotazioni. Le persone vedranno la classe annullata nella loro area, ma avvisarle a voce resta la cosa giusta da fare.`
+      : '';
+    const quante = target.length === 1 ? 'la classe' : `le ${target.length} classi`;
+    if (!window.confirm(`Annullare ${quante} del ${value}?${avviso}`)) return;
+
+    try {
+      // Annullate, non cancellate: eliminarle farebbe sparire anche le
+      // prenotazioni, e chi si presenta al box non capirebbe perché.
+      const batch = S.writeBatch(db);
+      target.forEach((session) => {
+        batch.update(S.doc(db, COLLECTIONS.sessions, session.id), { cancelled: true });
+      });
+      await batch.commit();
+
+      closeStatus.classList.add('ok');
+      closeStatus.textContent = target.length === 1
+        ? '1 classe annullata.'
+        : `${target.length} classi annullate.`;
+    } catch (error) {
+      closeStatus.classList.add('err');
+      closeStatus.textContent = `Chiusura non riuscita: ${error.message}`;
     }
   });
 
@@ -929,10 +1168,35 @@ function initSessions({ db, S }) {
             class: 'pill',
             text: `${session.booked || 0}/${session.capacity || 0}${left === 0 ? ' · completo' : ''}`,
           }),
+          session.waiting ? el('span', { class: 'pill warn', text: `${session.waiting} in coda` }) : null,
+          session.cancelled ? el('span', { class: 'pill warn', text: 'Annullata' }) : null,
         ]),
       ]),
       isOpen ? rosterBlock() : null,
+      isOpen
+        ? el('div', { class: 'admin-row-actions' }, [
+            el('button', {
+              type: 'button',
+              class: `mini-btn${session.cancelled ? '' : ' danger'}`,
+              text: session.cancelled ? 'Riapri la classe' : 'Annulla la classe',
+              onClick: () => toggleCancelled(session),
+            }),
+          ])
+        : null,
     ]);
+  }
+
+  async function toggleCancelled(session) {
+    const next = !session.cancelled;
+    if (next && session.booked > 0
+        && !window.confirm(`Questa classe ha ${session.booked} iscritti. Annullarla comunque?`)) {
+      return;
+    }
+    try {
+      await S.updateDoc(S.doc(db, COLLECTIONS.sessions, session.id), { cancelled: next });
+    } catch (error) {
+      showError(`Aggiornamento non riuscito: ${error.message}`);
+    }
   }
 
   function render() {
@@ -1190,6 +1454,7 @@ function initTabs() {
     { tab: qs('#tabEvents'), panel: qs('#panelEvents') },
     { tab: qs('#tabLeads'), panel: qs('#panelLeads') },
     { tab: qs('#tabMembers'), panel: qs('#panelMembers') },
+    { tab: qs('#tabToday'), panel: qs('#panelToday') },
     { tab: qs('#tabSessions'), panel: qs('#panelSessions') },
     { tab: qs('#tabTeam'), panel: qs('#panelTeam') },
   ];

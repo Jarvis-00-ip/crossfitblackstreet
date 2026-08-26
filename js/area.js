@@ -17,7 +17,9 @@
 import { qs, qsa, el } from './dom.js';
 import {
   FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured,
+  CANCEL_CUTOFF_HOURS, CERT_EXPIRY_WARNING_DAYS,
 } from './firebase/config.js';
+import { downloadIcs } from './ics.js';
 import { whatsappLink, SCHEDULE, CLASS_TYPES } from './data.js';
 import { expandSchedule, asDate } from './session-id.js';
 import { prepareDocument, toDataUrl, humanSize, MAX_BYTES } from './upload.js';
@@ -417,9 +419,16 @@ function createCertificateCard({ db, S, user, mount }) {
       note.textContent = {
         none: `Carica il certificato di idoneità sportiva. Foto o PDF, massimo ${humanSize(MAX_BYTES)}: le foto vengono ridotte in automatico.`,
         pending: 'Documento ricevuto. Lo staff lo verifica appena possibile.',
-        approved: expires
-          ? `Approvato, valido fino al ${expires.toLocaleDateString('it-IT')}.`
-          : 'Approvato.',
+        approved: (() => {
+          if (!expires) return 'Approvato.';
+          const days = Math.ceil((expires.getTime() - Date.now()) / 86400000);
+          const quando = expires.toLocaleDateString('it-IT');
+          if (days < 0) return `Scaduto il ${quando}. Caricane uno nuovo per continuare ad allenarti.`;
+          if (days <= CERT_EXPIRY_WARNING_DAYS) {
+            return `Valido fino al ${quando}: fra ${days} giorn${days === 1 ? 'o' : 'i'} scade. Meglio rinnovarlo per tempo.`;
+          }
+          return `Approvato, valido fino al ${quando}.`;
+        })(),
         rejected: profile.certNote
           ? `Documento respinto: ${profile.certNote}. Caricane uno nuovo.`
           : 'Documento respinto: caricane uno nuovo.',
@@ -435,7 +444,17 @@ function createCertificateCard({ db, S, user, mount }) {
 function initBooking({ db, S, user, profile }) {
   const listEl = qs('#calendarList');
   const mineEl = qs('#mineList');
-  const state = { type: 'ALL', sessions: new Map(), mine: new Map(), busy: new Set() };
+  const state = {
+    type: 'ALL',
+    sessions: new Map(),
+    mine: new Map(),      // prenotazioni confermate, per sessionId
+    waiting: new Map(),   // classi in cui sono in coda, per sessionId
+    busy: new Set(),
+  };
+
+  /** Millisecondi entro cui non si può più disdire. */
+  const cutoffMs = CANCEL_CUTOFF_HOURS * 3600 * 1000;
+  const canCancel = (start) => start && start.getTime() - Date.now() > cutoffMs;
 
   /* ---------- filtri disciplina ---------- */
 
@@ -496,6 +515,90 @@ function initBooking({ db, S, user, profile }) {
         type: data.type,
         createdAt: S.serverTimestamp(),
       });
+    });
+  }
+
+  /**
+   * Entra in lista d'attesa.
+   * Documento e contatore si muovono insieme, come per le prenotazioni: una
+   * coda che esiste senza che il contatore lo sappia sarebbe invisibile alle
+   * regole, e il primo posto libero finirebbe a chi passa di lì per caso.
+   */
+  async function joinWaitlist(slot) {
+    await S.runTransaction(db, async (tx) => {
+      const sessionRef = S.doc(db, COLLECTIONS.sessions, slot.id);
+      const waitRef = S.doc(db, COLLECTIONS.waitlist, `${user.uid}_${slot.id}`);
+
+      const snap = await tx.get(sessionRef);
+      if (!snap.exists()) throw new Error('Questa classe non è ancora aperta.');
+
+      const data = snap.data();
+      if (data.cancelled) throw new Error('Questa classe è stata annullata.');
+      if (data.booked < data.capacity) throw new Error('Si è appena liberato un posto: prenota direttamente.');
+      if ((await tx.get(waitRef)).exists()) throw new Error('Sei già in lista d\'attesa.');
+
+      tx.update(sessionRef, { waiting: (data.waiting || 0) + 1 });
+      tx.set(waitRef, {
+        uid: user.uid,
+        sessionId: slot.id,
+        userName: profile.name,
+        userEmail: (user.email || '').toLowerCase(),
+        startsAt: data.startsAt,
+        type: data.type,
+        joinedAt: S.serverTimestamp(),
+      });
+    });
+  }
+
+  /** Esce dalla coda. */
+  async function leaveWaitlist(slotId) {
+    await S.runTransaction(db, async (tx) => {
+      const sessionRef = S.doc(db, COLLECTIONS.sessions, slotId);
+      const waitRef = S.doc(db, COLLECTIONS.waitlist, `${user.uid}_${slotId}`);
+
+      const [snap, wait] = await Promise.all([tx.get(sessionRef), tx.get(waitRef)]);
+      if (!wait.exists()) return;
+
+      if (snap.exists()) {
+        tx.update(sessionRef, { waiting: Math.max(0, (snap.data().waiting || 0) - 1) });
+      }
+      tx.delete(waitRef);
+    });
+  }
+
+  /**
+   * Prende il posto liberato partendo dalla coda: prenotazione creata,
+   * contatore dei posti su, contatore della coda giù, riga di coda eliminata.
+   * Tutto insieme, perché le regole verificano proprio questa simultaneità.
+   */
+  async function bookFromWaitlist(slot) {
+    await S.runTransaction(db, async (tx) => {
+      const sessionRef = S.doc(db, COLLECTIONS.sessions, slot.id);
+      const bookingRef = S.doc(db, COLLECTIONS.bookings, `${user.uid}_${slot.id}`);
+      const waitRef = S.doc(db, COLLECTIONS.waitlist, `${user.uid}_${slot.id}`);
+
+      const [snap, wait] = await Promise.all([tx.get(sessionRef), tx.get(waitRef)]);
+      if (!snap.exists()) throw new Error('Classe non trovata.');
+      if (!wait.exists()) throw new Error('Non sei più in lista d\'attesa.');
+
+      const data = snap.data();
+      if (data.cancelled) throw new Error('Questa classe è stata annullata.');
+      if (data.booked >= data.capacity) throw new Error('Il posto è già stato preso.');
+
+      tx.update(sessionRef, {
+        booked: data.booked + 1,
+        waiting: Math.max(0, (data.waiting || 0) - 1),
+      });
+      tx.set(bookingRef, {
+        uid: user.uid,
+        sessionId: slot.id,
+        userName: profile.name,
+        userEmail: (user.email || '').toLowerCase(),
+        startsAt: data.startsAt,
+        type: data.type,
+        createdAt: S.serverTimestamp(),
+      });
+      tx.delete(waitRef);
     });
   }
 
@@ -564,81 +667,196 @@ function initBooking({ db, S, user, profile }) {
   function slotCard(slot) {
     const session = state.sessions.get(slot.id);
     const mine = state.mine.has(slot.id);
+    const queued = state.waiting.has(slot.id);
     const busy = state.busy.has(slot.id);
 
     // Nessun documento sessione = l'admin non ha ancora generato il calendario
     // per quel giorno. Meglio dirlo che mostrare un pulsante che fallirebbe.
     const open = Boolean(session);
+    const cancelled = Boolean(session?.cancelled);
     const left = open ? Math.max(0, session.capacity - session.booked) : 0;
+    const inQueue = open ? session.waiting || 0 : 0;
     const full = open && left === 0;
 
-    let label = 'Prenota';
-    if (busy) label = '…';
-    else if (mine) label = 'Disdici';
-    else if (!open) label = 'Non aperta';
-    else if (full) label = 'Completo';
+    // Un posto libero mentre c'è coda non è di chi passa: è dei suoi. Le regole
+    // lo impongono, l'interfaccia lo deve dire prima del click.
+    const reservedForQueue = full === false && inQueue > 0 && !queued;
 
-    return el('article', {
-      class: `slot-card type-${slot.type}${mine ? ' is-mine' : ''}${full && !mine ? ' is-full' : ''}`,
-    }, [
+    let label = 'Prenota';
+    let action = () => book(slot);
+    let disabled = false;
+
+    if (busy) {
+      label = '…';
+      disabled = true;
+    } else if (cancelled) {
+      label = 'Annullata';
+      disabled = true;
+    } else if (mine) {
+      label = 'Disdici';
+      action = () => cancel(slot.id);
+      disabled = !canCancel(slot.startsAt);
+    } else if (queued) {
+      // Se nel frattempo si è liberato un posto, il pulsante cambia mestiere.
+      if (left > 0) {
+        label = 'Prendi il posto';
+        action = () => bookFromWaitlist(slot);
+      } else {
+        label = 'Esci dalla coda';
+        action = () => leaveWaitlist(slot.id);
+      }
+    } else if (!open) {
+      label = 'Non aperta';
+      disabled = true;
+    } else if (full) {
+      label = 'Mettiti in coda';
+      action = () => joinWaitlist(slot);
+    } else if (reservedForQueue) {
+      label = 'Riservato';
+      disabled = true;
+    }
+
+    let seats;
+    if (!open) seats = 'non aperta';
+    else if (cancelled) seats = 'annullata';
+    else if (queued && left > 0) seats = 'posto libero!';
+    else if (queued) seats = `sei in coda · ${inQueue} in attesa`;
+    else if (reservedForQueue) seats = `${inQueue} in coda`;
+    else if (full) seats = inQueue ? `completo · ${inQueue} in coda` : 'completo';
+    else seats = `${left} post${left === 1 ? 'o' : 'i'}`;
+
+    const classes = [
+      'slot-card',
+      `type-${slot.type}`,
+      mine ? 'is-mine' : '',
+      queued ? 'is-queued' : '',
+      queued && left > 0 ? 'is-free' : '',
+      cancelled ? 'is-cancelled' : '',
+      (full || reservedForQueue) && !mine && !queued ? 'is-full' : '',
+    ].filter(Boolean).join(' ');
+
+    const card = el('article', { class: classes }, [
       el('div', { class: 'slot-card-main' }, [
         el('span', { class: 'slot-card-time', text: timeFmt.format(slot.startsAt) }),
         el('span', { class: 'slot-card-type', text: CLASS_TYPES[slot.type].short }),
       ]),
-      el('span', {
-        class: `slot-card-seats${full ? ' is-full' : ''}`,
-        text: !open ? 'non aperta' : full ? 'completo' : `${left} post${left === 1 ? 'o' : 'i'}`,
-      }),
+      el('span', { class: `slot-card-seats${full || cancelled ? ' is-full' : ''}`, text: seats }),
       el('button', {
         type: 'button',
-        class: `mini-btn${mine ? ' danger' : ''}`,
-        disabled: busy || (!mine && (!open || full)),
+        class: `mini-btn${mine || queued ? ' danger' : ''}`,
+        disabled,
         text: label,
-        onClick: () => run(slot.id, () => (mine ? cancel(slot.id) : book(slot))),
+        onClick: () => run(slot.id, action),
       }),
     ]);
+
+    // Il termine per disdire non si indovina: va scritto dove serve.
+    if (mine && !canCancel(slot.startsAt)) {
+      card.append(el('span', {
+        class: 'slot-card-note',
+        text: `Disdetta chiusa (${CANCEL_CUTOFF_HOURS}h prima)`,
+      }));
+    }
+
+    return card;
   }
 
   /* ---------- le mie prenotazioni ---------- */
 
   function renderMine() {
     const now = new Date();
-    const mine = [...state.mine.values()]
-      .map((b) => ({ ...b, start: asDate(b.startsAt) }))
-      .sort((a, b) => (a.start?.getTime() || 0) - (b.start?.getTime() || 0));
 
-    qs('#mineCount').textContent = String(mine.filter((b) => b.start && b.start > now).length);
+    const rows = [
+      ...[...state.mine.values()].map((b) => ({ ...b, kind: 'booking', start: asDate(b.startsAt) })),
+      ...[...state.waiting.values()].map((w) => ({ ...w, kind: 'wait', start: asDate(w.startsAt) })),
+    ].sort((a, b) => (a.start?.getTime() || 0) - (b.start?.getTime() || 0));
 
-    mineEl.replaceChildren(
-      ...(mine.length
-        ? mine.map((booking) => {
-            const start = booking.start;
-            const past = !start || start <= new Date();
-            return el('article', { class: `admin-row${past ? ' is-draft' : ' is-featured'}` }, [
-              el('div', { class: 'admin-row-head' }, [
-                el('h3', {
-                  class: 'admin-row-title',
-                  text: start ? `${dayFmt.format(start)} · ${timeFmt.format(start)}` : 'Classe prenotata',
-                }),
-                el('span', {
-                  class: `pill${past ? '' : ' on'}`,
-                  text: CLASS_TYPES[booking.type]?.short || booking.type,
-                }),
-              ]),
-              past
-                ? el('p', { class: 'admin-row-meta', text: 'Classe già svolta.' })
-                : el('div', { class: 'admin-row-actions' }, [
-                    el('button', {
-                      type: 'button',
-                      class: 'mini-btn danger',
-                      text: 'Disdici',
-                      onClick: () => run(booking.sessionId, () => cancel(booking.sessionId)),
-                    }),
-                  ]),
-            ]);
-          })
-        : [el('p', { class: 'admin-empty', text: 'Non hai ancora prenotazioni.' })])
-    );
+    qs('#mineCount').textContent = String(rows.filter((r) => r.start && r.start > now).length);
+
+    if (!rows.length) {
+      mineEl.replaceChildren(el('p', { class: 'admin-empty', text: 'Non hai ancora prenotazioni.' }));
+      return;
+    }
+
+    mineEl.replaceChildren(...rows.map((row) => {
+      const start = row.start;
+      const past = !start || start <= now;
+      const queued = row.kind === 'wait';
+      const session = state.sessions.get(row.sessionId);
+      const cancelled = Boolean(session?.cancelled);
+
+      const actions = [];
+
+      if (!past && !cancelled) {
+        if (queued) {
+          const free = session && session.capacity - session.booked > 0;
+          if (free) {
+            actions.push(el('button', {
+              type: 'button', class: 'mini-btn', text: 'Prendi il posto',
+              onClick: () => run(row.sessionId, () => bookFromWaitlist({ id: row.sessionId })),
+            }));
+          }
+          actions.push(el('button', {
+            type: 'button', class: 'mini-btn danger', text: 'Esci dalla coda',
+            onClick: () => run(row.sessionId, () => leaveWaitlist(row.sessionId)),
+          }));
+        } else {
+          // Il promemoria lo dà il calendario del socio: niente notifiche da
+          // spedire, niente permessi da chiedere, funziona anche offline.
+          actions.push(el('button', {
+            type: 'button', class: 'mini-btn', text: 'Aggiungi al calendario',
+            onClick: () => downloadIcs({
+              uid: `${row.uid}_${row.sessionId}`,
+              start,
+              minutes: 60,
+              title: `${CLASS_TYPES[row.type]?.label || row.type} · Black Street`,
+              description: `Prenotazione confermata. Disdetta possibile fino a ${CANCEL_CUTOFF_HOURS} ore prima.`,
+              location: 'CrossFit Black Street',
+            }, `black-street-${row.sessionId}.ics`),
+          }));
+
+          if (canCancel(start)) {
+            actions.push(el('button', {
+              type: 'button', class: 'mini-btn danger', text: 'Disdici',
+              onClick: () => run(row.sessionId, () => cancel(row.sessionId)),
+            }));
+          }
+        }
+      }
+
+      let note = null;
+      if (cancelled) note = 'Classe annullata dal box.';
+      else if (past) note = queued ? 'Eri in lista d\'attesa.' : 'Classe già svolta.';
+      else if (!queued && !canCancel(start)) {
+        note = `Disdetta non più possibile: si chiude ${CANCEL_CUTOFF_HOURS} ore prima dell'inizio.`;
+      } else if (queued) {
+        const free = session && session.capacity - session.booked > 0;
+        note = free
+          ? 'Si è liberato un posto: prendilo prima che lo faccia un altro in coda.'
+          : 'Sei in lista d\'attesa. Se un posto si libera, potrai prenderlo da qui.';
+      }
+
+      return el('article', {
+        class: `admin-row${cancelled ? ' is-draft' : past ? ' is-draft' : queued ? ' is-new' : ' is-featured'}`,
+      }, [
+        el('div', { class: 'admin-row-head' }, [
+          el('h3', {
+            class: 'admin-row-title',
+            text: start ? `${dayFmt.format(start)} · ${timeFmt.format(start)}` : 'Classe prenotata',
+          }),
+          el('div', { class: 'pill-row' }, [
+            queued ? el('span', { class: 'pill warn', text: 'In coda' }) : null,
+            cancelled ? el('span', { class: 'pill warn', text: 'Annullata' }) : null,
+            el('span', {
+              class: `pill${past || cancelled ? '' : ' on'}`,
+              text: CLASS_TYPES[row.type]?.short || row.type,
+            }),
+          ]),
+        ]),
+        note ? el('p', { class: 'admin-row-meta', text: note }) : null,
+        actions.length ? el('div', { class: 'admin-row-actions' }, actions) : null,
+      ]);
+    }));
   }
 
   /* ---------- listener realtime ---------- */
@@ -665,12 +883,23 @@ function initBooking({ db, S, user, profile }) {
     (error) => showError(`Prenotazioni non leggibili: ${error.message}`)
   );
 
+  const stopWaiting = S.onSnapshot(
+    S.query(S.collection(db, COLLECTIONS.waitlist), S.where('uid', '==', user.uid)),
+    (snapshot) => {
+      state.waiting = new Map(snapshot.docs.map((d) => [d.data().sessionId, d.data()]));
+      renderCalendar();
+      renderMine();
+    },
+    (error) => showError(`Lista d'attesa non leggibile: ${error.message}`)
+  );
+
   renderCalendar();
   renderMine();
 
   return () => {
     stopSessions();
     stopMine();
+    stopWaiting();
   };
 }
 

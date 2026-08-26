@@ -148,3 +148,38 @@
   background: var(--hyrox-soft);
   color: #f0d9a8;
 }
+
+/* ---------- Stati aggiuntivi delle classi ---------- */
+.slot-card { flex-wrap: wrap; }
+
+.slot-card.is-queued {
+  border-color: rgba(255, 176, 32, 0.5);
+  border-left-color: var(--hyrox);
+  background: var(--hyrox-soft);
+}
+
+/* Posto liberato mentre si è in coda: deve saltare all'occhio, perché è
+   l'unico momento in cui il socio deve agire subito. */
+.slot-card.is-free {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(74, 222, 128, 0.12);
+  animation: freeSeat 2s ease-in-out infinite;
+}
+@keyframes freeSeat {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+}
+
+.slot-card.is-cancelled { opacity: 0.5; }
+.slot-card.is-cancelled .slot-card-time { text-decoration: line-through; }
+
+.slot-card-note {
+  flex-basis: 100%;
+  font-size: 0.74rem;
+  color: var(--muted);
+  padding-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-card.is-free { animation: none; }
+}

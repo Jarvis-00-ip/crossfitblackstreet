@@ -407,3 +407,23 @@
   font-weight: 600;
   color: var(--hyrox);
 }
+
+/* ---------- Presenze del giorno ---------- */
+.attendance {
+  margin: 12px 0 0;
+  padding: 0 0 0 22px;
+  display: grid;
+  gap: 6px;
+  list-style: decimal;
+  color: var(--muted);
+}
+.attendance li { padding-left: 4px; }
+.attendance strong { color: var(--text); font-size: 0.95rem; margin-right: 8px; }
+.attendance em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.admin-row-hint.is-alarm { color: #ff8a8a; }

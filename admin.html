@@ -116,6 +116,9 @@
         <button class="admin-tab" id="tabMembers" role="tab" aria-selected="false" aria-controls="panelMembers" type="button">
           Soci <span class="count" id="membersCount">0</span>
         </button>
+        <button class="admin-tab" id="tabToday" role="tab" aria-selected="false" aria-controls="panelToday" type="button">
+          Oggi <span class="count" id="todayCount">0</span>
+        </button>
         <button class="admin-tab" id="tabSessions" role="tab" aria-selected="false" aria-controls="panelSessions" type="button">
           Classi <span class="count" id="sessionsCount">0</span>
         </button>
@@ -222,6 +225,20 @@
         </div>
       </div>
 
+      <!-- ---------- Oggi ---------- -->
+      <div class="admin-tabpanel" id="panelToday" role="tabpanel" aria-labelledby="tabToday" hidden>
+        <div class="admin-panel">
+          <div class="admin-panel-head">
+            <h2 class="admin-title" id="todayTitle">Presenze di oggi</h2>
+            <div class="chips" id="dayNav"></div>
+          </div>
+          <p class="admin-desc">
+            Chi è atteso in ognuna delle classi di oggi. Da guardare dal telefono all'ingresso.
+          </p>
+          <div id="todayList" aria-live="polite"></div>
+        </div>
+      </div>
+
       <!-- ---------- Classi ---------- -->
       <div class="admin-tabpanel" id="panelSessions" role="tabpanel" aria-labelledby="tabSessions" hidden>
         <div class="admin-columns">
@@ -234,6 +251,18 @@
             </p>
             <button type="button" class="btn btn-primary btn-block" id="generateBtn">Genera calendario</button>
             <p class="form-status" id="generateStatus" role="status" aria-live="polite"></p>
+
+            <h3 class="admin-subtitle">Chiusura straordinaria</h3>
+            <p class="admin-desc">
+              Ferie, festività, lavori. Le classi vengono <strong>annullate</strong> e non
+              cancellate: chi ha prenotato lo vede scritto nella propria area.
+            </p>
+            <div class="field">
+              <label for="closeDate">Giorno da chiudere</label>
+              <input type="date" id="closeDate" />
+            </div>
+            <button type="button" class="btn btn-ghost btn-block btn-sm" id="closeDayBtn">Annulla le classi del giorno</button>
+            <p class="form-status" id="closeStatus" role="status" aria-live="polite"></p>
 
             <div class="owner-note">
               <strong>Capienza predefinita</strong> — CrossFit Class <span id="capCF">–</span> posti,

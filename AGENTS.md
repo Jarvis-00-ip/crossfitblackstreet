@@ -148,6 +148,28 @@ in `ui.js` e il gestore in `senza-respiro.js` sostituiscono un'immagine non
 trovata con un riquadro che dice quale file manca. Un'icona di file rotto fa
 sembrare il sito abbandonato.
 
+### 2.9bis La lista d'attesa non promuove nessuno: riserva il posto
+
+Quando un posto si libera **non** viene assegnato al primo della coda.
+Assegnarlo richiederebbe che un client scriva una prenotazione a nome di
+qualcun altro, e aprire quel permesso sarebbe un buco molto più grande del
+problema che risolve: chiunque potrebbe iscrivere chiunque.
+
+Le regole fanno una cosa più semplice e altrettanto utile: finché
+`waiting > 0`, il posto libero può prenderlo **solo** chi è in coda
+(`takesSeat()` esige `waiting == 0`). Fra i presenti in coda vale l'ordine di
+arrivo sul pulsante, non quello di iscrizione.
+
+Il compromesso è consapevole: chi è quinto e sta guardando la pagina batte chi
+è primo e non la sta guardando. Per un box da quattordici posti è accettabile,
+e la pagina evidenzia il posto libero in tempo reale a tutti quelli in coda.
+Una coda con ordine rigoroso richiede un server, quindi il piano Blaze.
+
+**Un dettaglio di sicurezza che vale la pena non perdere:** `releasesSeat()`
+esige `exists(bookingRef())`. Senza, chiunque potrebbe abbassare il contatore
+di una classe a cui non è iscritto, farla risultare libera e mandarla in
+overbooking. Era un buco presente fino alla Fase 1.
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -192,6 +214,7 @@ js/
   session-id.js    ID e date delle sessioni (condiviso area/admin)
   upload.js        compressione e codifica documenti
   redirect.js      smistamento fra le pagine
+  ics.js           evento di calendario per le prenotazioni
   senza-respiro.js sezione progetto + carosello Instagram
   firebase/
     config.js      ⭐ credenziali, capienze, OWNER_UID
@@ -213,8 +236,9 @@ cambiano lì, senza toccare HTML o CSS.
 | `invites` | email | inviti in attesa; l'ID **è** l'email, serve a `exists()` |
 | `users` | UID | soci: `status` (`pending`/`active`/`blocked`) + metadati certificato |
 | `certificates` | UID | il documento in base64 |
-| `sessions` | `2026-08-26_0930_CF` | occorrenza di classe: `startsAt`, `type`, `capacity`, `booked` |
+| `sessions` | `2026-08-26_0930_CF` | occorrenza: `startsAt`, `type`, `capacity`, `booked`, `waiting`, `cancelled` |
 | `bookings` | `{uid}_{sessionId}` | prenotazione; l'ID composto vieta i doppioni |
+| `waitlist` | `{uid}_{sessionId}` | chi aspetta un posto; contatore `waiting` sulla sessione |
 | `events` | auto | bacheca eventi, con bozze |
 | `leads` | auto | richieste dal form contatti |
 
@@ -239,6 +263,9 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Sfondo del hero disegnato in SVG animato, come segnaposto sostituibile
 - [x] Sezione «WOD Senza Respiro» + carosello Instagram a caricamento differito
 - [x] Foto reali: `senza-respiro-1.jpg`, `senza-respiro-2.jpg`, `box.jpg`
+- [x] **Fase 1 completa**: lista d'attesa, termine di disdetta a 2 ore, vista
+      presenze del giorno, certificati in scadenza, chiusure straordinarie
+- [x] «Aggiungi al calendario» con file `.ics` e promemoria
 
 ### Da fare
 
@@ -252,33 +279,8 @@ Ordinato per quando fa male non averlo, non per quanto è divertente farlo.
       — dati sanitari, categoria particolare (art. 9). Servono informativa,
       consenso esplicito, politica di conservazione e cancellazione.
 
-#### Fase 1 — reggere la prima settimana vera
-
-Il gestionale funziona in demo. Queste sono le cose che mancano e che si
-sentono subito con soci veri.
-
-- [ ] **Lista d'attesa.** Oggi «Completo» è un vicolo cieco: il socio chiude la
-      pagina e non torna. Fattibile su Spark facendo promuovere il primo in coda
-      dal client di chi disdice, nella stessa transazione. È la cosa più
-      complessa dell'elenco: le regole devono verificare che il posto liberato
-      vada davvero al primo della coda.
-- [ ] **Termine per la disdetta.** Adesso si disdice fino all'orario di inizio:
-      chi molla all'ultimo lascia un posto sprecato. Serve un limite
-      configurabile (2h? 4h?) e cosa succede a chi lo supera.
-- [ ] **Vista presenze del giorno** nel pannello: chi c'è oggi alle 19.30, in una
-      lista che il coach guarda dal telefono all'ingresso. La scheda Classi
-      elenca le sessioni future, che è un'altra cosa.
-- [ ] **Certificati in scadenza.** `certExpiresAt` è già archiviato ma non lo
-      guarda nessuno: basta una lista nel pannello e un avviso al socio. Valore
-      immediato, zero infrastruttura nuova.
-- [ ] **Chiusure straordinarie** (festività, ferie): oggi si cancellano le
-      sessioni una per una.
-
 #### Fase 2 — far tornare le persone
 
-- [ ] **«Aggiungi al calendario» (.ics)** sulla prenotazione. Il promemoria lo dà
-      il telefono del socio, e a noi non costa nulla — vedi §2.11 sul perché non
-      sono notifiche push.
 - [ ] **Storico allenamenti** del socio: quante classi questo mese. Motiva e
       serve a chi controlla gli abbonamenti.
 - [ ] **WOD del giorno**, pubblicato dal pannello. Trasforma il sito da vetrina
