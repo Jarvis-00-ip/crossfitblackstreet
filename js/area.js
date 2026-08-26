@@ -689,17 +689,20 @@ function initBooking({ db, S, user, profile }) {
     // che il box non abbia ancora aperto le prenotazioni.
     const nothingOpen = state.sessions.size === 0;
 
+    // Lo spread e non un ternario che ricade su `null`: replaceChildren()
+    // accetta nodi *o stringhe*, quindi un null diventa la scritta "null" in
+    // mezzo alla pagina invece di sparire.
     listEl.replaceChildren(
-      nothingOpen
-        ? el('p', { class: 'calendar-notice' }, [
+      ...(nothingOpen
+        ? [el('p', { class: 'calendar-notice' }, [
             el('strong', { text: 'Prenotazioni non ancora aperte. ' }),
             el('span', {
               text: 'Qui sotto trovi il palinsesto del box: appena lo staff apre il '
                 + 'calendario potrai prenotare da questa pagina. Nel frattempo, per un '
                 + 'posto scrivici su WhatsApp.',
             }),
-          ])
-        : null,
+          ])]
+        : []),
       ...[...groups.entries()].map(([, daySlots]) =>
         el('section', { class: 'day-block' }, [
           el('h3', { class: 'day-block-title', text: dayFmt.format(daySlots[0].startsAt) }),
@@ -921,16 +924,17 @@ function initBooking({ db, S, user, profile }) {
         ? el('div', { class: 'admin-list' }, upcoming.map(card))
         : el('p', { class: 'admin-empty', text: 'Nessuna prenotazione in programma.' }),
 
-      history.length
-        ? el('section', { class: 'history-block' }, [
+      // Stesso motivo di renderCalendar(): niente `: null` come argomento.
+      ...(history.length
+        ? [el('section', { class: 'history-block' }, [
             el('h3', { class: 'admin-subtitle' }, [
               document.createTextNode('I tuoi ultimi allenamenti '),
               el('span', { class: 'pill', text: `${history.length}` }),
             ]),
             el('p', { class: 'admin-desc', text: `Le classi che hai frequentato nelle ultime ${MEMBER_HISTORY_DAYS / 7} settimane.` }),
             el('div', { class: 'admin-list' }, history.map(card)),
-          ])
-        : null
+          ])]
+        : [])
     );
   }
 

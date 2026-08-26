@@ -429,7 +429,18 @@ service cloud.firestore {
         return /databases/$(database)/documents/sessions/$(sid);
       }
 
-      allow get, list: if request.auth != null
+      // Attenzione al ramo `resource == null`: prenotare comincia con il
+      // CONTROLLARE se la prenotazione esiste già, e a quel punto il documento
+      // non c'è. Su un documento inesistente `resource` è null e
+      // `resource.data.uid` fa fallire la regola: senza questo ramo la
+      // transazione veniva rifiutata in lettura, prima ancora di scrivere.
+      // Non si espone nulla: la risposta è «non esiste».
+      allow get: if request.auth != null
+        && (isAdmin() || resource == null || resource.data.uid == request.auth.uid);
+
+      // Nelle query il documento c'è per definizione: qui `resource` non è mai
+      // null, e ammetterlo aprirebbe soltanto un buco.
+      allow list: if request.auth != null
         && (isAdmin() || resource.data.uid == request.auth.uid);
 
       allow create: if isActiveMember()
@@ -498,7 +509,12 @@ service cloud.firestore {
         return /databases/$(database)/documents/sessions/$(sid);
       }
 
-      allow get, list: if request.auth != null
+      // Stesso motivo delle prenotazioni: mettersi in coda comincia con il
+      // verificare di non esserci già, quando il documento ancora non esiste.
+      allow get: if request.auth != null
+        && (isAdmin() || resource == null || resource.data.uid == request.auth.uid);
+
+      allow list: if request.auth != null
         && (isAdmin() || resource.data.uid == request.auth.uid);
 
       allow create: if isActiveMember()

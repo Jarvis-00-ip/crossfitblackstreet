@@ -230,6 +230,30 @@ scarta quelli che non sono davvero scaduti: una query sbagliata svuoterebbe
 l'archivio invece di potarlo, e una cancellazione non si annulla. Il costo di
 quel controllo è nulla rispetto al danno che evita.
 
+### 2.9quinquies Le regole devono ammettere il documento che non c'è ancora
+
+`resource` è **null** quando si legge un documento inesistente, e
+`resource.data.uid` su null non è false: fa fallire la regola. Sembra un
+dettaglio da manuale, invece è la trappola che ha tenuto ferme le prenotazioni.
+
+Prenotare comincia con il *controllare* se la prenotazione esiste già
+(`tx.get(bookingRef)` dentro la transazione), e in quel momento il documento
+non esiste. Con la regola scritta come `resource.data.uid == request.auth.uid`
+la lettura veniva rifiutata, la transazione moriva prima di scrivere, e in
+console arrivava un `permission-denied` su `BatchGetDocuments` — che sembra un
+problema di scrittura e non lo è.
+
+Per questo `bookings` e `waitlist` separano `get` da `list`:
+
+- **`get`** ammette anche `resource == null`. Non espone nulla: la risposta a
+  un documento inesistente è «non esiste».
+- **`list`** no. In una query il documento c'è per definizione, quindi quel
+  ramo aprirebbe soltanto un buco.
+
+**Regola pratica:** ogni volta che il client fa una `get` su un ID
+deterministico per sapere se esiste, la regola di lettura deve prevedere il
+caso «non esiste».
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -426,8 +450,17 @@ della sessione, non nella repo. Il metodo, se serve rifarli:
    un guasto a tutti gli effetti: misura la posizione del messaggio d'esito
    rispetto alla finestra, dopo aver scorso la pagina.
 
-Prima di ogni push: `node --check` su ogni file JS toccato, e nessun
-`pageerror` nelle pagine provate.
+Prima di ogni push:
+
+```bash
+# NON usare `node --check file.js`: su un ES module esce 0 sempre (vedi §8)
+for f in $(find js -name '*.js'); do
+  node --input-type=module --check < "$f" || echo "ROTTO: $f"
+done
+```
+
+…e nessun `pageerror` nelle pagine provate: è quello — non il controllo di
+sintassi — che ha intercettato l'ultimo errore vero.
 
 ---
 
@@ -455,6 +488,15 @@ Prima di ogni push: `node --check` su ogni file JS toccato, e nessun
   della risposta del server. Non prendere decisioni distruttive senza aver
   controllato `snapshot.metadata.fromCache`.
 - **`serverTimestamp()` è `null` localmente** finché il server non conferma.
+- **`node --check` non controlla gli ES module.** Su un file con `import` o
+  `export` — cioè ogni file di questo progetto — Node 22 esce **0 anche con un
+  errore di sintassi palese**. Ha lasciato passare un `......groups` che ha
+  ucciso tutto il JavaScript dell'area soci. La forma che funziona è
+  `node --input-type=module --check < file.js`.
+- **`replaceChildren(null)` scrive «null» nella pagina.** Accetta nodi *o
+  stringhe*, quindi un ternario che ricade su `null` diventa testo visibile.
+  Dentro `el()` il problema non c'è (i figli null vengono scartati), ma nelle
+  chiamate diritte serve lo spread: `...(cond ? [nodo] : [])`.
 - **Un messaggio d'errore fuori dallo schermo non esiste.** Prima di dare la
   caccia a un bug in una scrittura che «non fa niente», controlla che il
   riquadro dell'esito sia *dentro* la finestra: il test in
