@@ -49,6 +49,19 @@ function showError(message) {
   box.hidden = !message;
 }
 
+/**
+ * L'errore più frequente al primo avvio è sempre lo stesso: regole non
+ * ancora pubblicate. Dirlo esplicitamente evita mezz'ora di ricerche.
+ */
+function writeMessage(error) {
+  if (/permission|insufficient/i.test(error?.message || '')) {
+    return 'Scrittura rifiutata dal server. Quasi sempre significa che '
+      + 'firestore.rules non è stato ripubblicato in console dopo l\'ultima '
+      + 'modifica: le regole in vigore non conoscono i campi nuovi.';
+  }
+  return error?.message || 'Operazione non riuscita.';
+}
+
 /** Messaggi di errore Firebase → italiano comprensibile. */
 function authMessage(code) {
   const map = {
@@ -76,6 +89,13 @@ function authMessage(code) {
 const dateFmt = new Intl.DateTimeFormat('it-IT', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
 });
+
+/**
+ * Documenti per batch quando le regole fanno una lettura per documento.
+ * Il tetto di Firestore è 20; dieci lascia margine se un giorno una regola
+ * dovesse guardare più di un documento.
+ */
+const RULE_SAFE_BATCH = 10;
 
 const sessionFmt = new Intl.DateTimeFormat('it-IT', {
   weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
@@ -999,10 +1019,16 @@ function initSessions({ db, S }) {
     const missing = slots.filter((slot) => !existing.has(slot.id));
     if (!missing.length) return 0;
 
-    // Batch da 400: il limite di Firestore è 500 operazioni.
-    for (let i = 0; i < missing.length; i += 400) {
+    // Batch piccoli, e non per il limite di 500 operazioni.
+    //
+    // Le Security Rules possono leggere altri documenti un numero limitato di
+    // volte per richiesta: 10 su un singolo documento, 20 su una scrittura in
+    // batch. `allow create: if isAdmin()` chiama exists(/admins/{uid}) per
+    // OGNI documento del batch — con batch da 400 sarebbero 400 letture,
+    // venti volte oltre il limite, e Firestore rifiuta l'intero batch.
+    for (let i = 0; i < missing.length; i += RULE_SAFE_BATCH) {
       const batch = S.writeBatch(db);
-      missing.slice(i, i + 400).forEach((slot) => {
+      missing.slice(i, i + RULE_SAFE_BATCH).forEach((slot) => {
         batch.set(S.doc(db, COLLECTIONS.sessions, slot.id), {
           startsAt: slot.startsAt,
           type: slot.type,
@@ -1078,7 +1104,7 @@ function initSessions({ db, S }) {
         : `Il calendario stava per esaurirsi: aperte ${created} nuove classi.`;
     } catch (error) {
       status.className = 'form-status err';
-      status.textContent = `Apertura automatica non riuscita: ${error.message}`;
+      status.textContent = `Apertura automatica non riuscita. ${writeMessage(error)}`;
     }
   }
 
@@ -1095,7 +1121,7 @@ function initSessions({ db, S }) {
         : 'Calendario già completo: nessuna nuova classe da aprire.';
     } catch (error) {
       status.classList.add('err');
-      status.textContent = `Generazione non riuscita: ${error.message}`;
+      status.textContent = `Generazione non riuscita. ${writeMessage(error)}`;
     } finally {
       button.disabled = false;
     }
@@ -1135,11 +1161,14 @@ function initSessions({ db, S }) {
     try {
       // Annullate, non cancellate: eliminarle farebbe sparire anche le
       // prenotazioni, e chi si presenta al box non capirebbe perché.
-      const batch = S.writeBatch(db);
-      target.forEach((session) => {
-        batch.update(S.doc(db, COLLECTIONS.sessions, session.id), { cancelled: true });
-      });
-      await batch.commit();
+      // Stesso limite della generazione: ogni update passa da isAdmin().
+      for (let i = 0; i < target.length; i += RULE_SAFE_BATCH) {
+        const batch = S.writeBatch(db);
+        target.slice(i, i + RULE_SAFE_BATCH).forEach((session) => {
+          batch.update(S.doc(db, COLLECTIONS.sessions, session.id), { cancelled: true });
+        });
+        await batch.commit();
+      }
 
       closeStatus.classList.add('ok');
       closeStatus.textContent = target.length === 1
@@ -1147,7 +1176,7 @@ function initSessions({ db, S }) {
         : `${target.length} classi annullate.`;
     } catch (error) {
       closeStatus.classList.add('err');
-      closeStatus.textContent = `Chiusura non riuscita: ${error.message}`;
+      closeStatus.textContent = `Chiusura non riuscita. ${writeMessage(error)}`;
     }
   });
 

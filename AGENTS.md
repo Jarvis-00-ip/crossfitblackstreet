@@ -385,6 +385,16 @@ Prima di ogni push: `node --check` su ogni file JS toccato, e nessun
 
 ## 8. Cose da sapere che fanno perdere tempo
 
+- **Le regole possono leggere pochi documenti per richiesta:** 10 su una
+  scrittura singola, **20 su un batch o una transazione**. Una regola come
+  `allow create: if isAdmin()` chiama `exists()` per ogni documento del batch:
+  con batch da 400 sono 400 letture e Firestore rifiuta tutto in blocco, con un
+  generico «Missing or insufficient permissions» che sembra un problema di
+  permessi e non di dimensione. Da qui `RULE_SAFE_BATCH = 10` in `admin.js`.
+- **«Missing or insufficient permissions» ha quasi sempre una causa banale:**
+  le regole non sono state ripubblicate in console dopo l'ultima modifica al
+  file. Il codice manda campi che le regole in vigore non conoscono, e
+  `hasOnly()` rifiuta. Prima di cercare altrove, ripubblica.
 - **Le regole non filtrano, valutano.** Una query non filtrata su una
   collection con regole per-documento viene rifiutata *in blocco*. Per questo
   la home interroga gli eventi con `where('published','==',true)`.
