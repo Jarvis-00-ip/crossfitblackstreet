@@ -254,6 +254,33 @@ Per questo `bookings` e `waitlist` separano `get` da `list`:
 deterministico per sapere se esiste, la regola di lettura deve prevedere il
 caso «non esiste».
 
+### 2.9sexies L'interfaccia non aspetta il listener
+
+I listener realtime sono la via normale con cui la pagina scopre com'è andata
+una scrittura, ma **non sono una garanzia**: una rete che chiude le connessioni
+lunghe, un'estensione del browser, un portatile che si risveglia — e restano
+muti senza dire niente. È successo in produzione: la prenotazione veniva
+scritta, compariva la conferma, e il pulsante restava «Prenota». Il socio ci
+riclicca sopra e si sente rispondere che ha già prenotato: sembra un guasto,
+ed è solo un'interfaccia ferma.
+
+Due difese, entrambe necessarie:
+
+1. **Aggiornamento ottimistico.** Appena la transazione è confermata, lo stato
+   locale viene aggiornato con gli stessi valori che ha appena scritto il
+   server. Al primo snapshot il listener sovrascrive tutto, quindi non nasce
+   nessuna verità parallela.
+2. **Riallineamento quando la scheda torna in primo piano** (`visibilitychange`,
+   non più di una volta ogni 30 secondi). Copre il caso peggiore — listener
+   morto e pagina lasciata aperta — senza il costo di un polling.
+
+**Il dettaglio che fa la differenza: il valore scritto è assoluto, mai un
+`+1`.** Con l'incremento relativo il conto si applicava due volte quando il
+listener era già arrivato — un posto prenotato ne toglieva due dal contatore.
+Riscrivere lo stesso numero, arrivi prima o dopo, dà sempre lo stesso
+risultato. Ogni aggiornamento ottimistico dev'essere idempotente, perché
+l'ordine di arrivo non lo decidi tu.
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -354,6 +381,7 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Archivio presenze per gli admin: ultimi 30 giorni, per giornata e classe
 - [x] Storico del socio: le proprie ultime 2 settimane, nessun nome altrui
 - [x] Rotazione giornaliera automatica, anche a pagina lasciata aperta
+- [x] Prenotazione che si vede subito, anche se il realtime tace (§2.9sexies)
 
 ### Da fare
 
@@ -493,6 +521,11 @@ sintassi — che ha intercettato l'ultimo errore vero.
   errore di sintassi palese**. Ha lasciato passare un `......groups` che ha
   ucciso tutto il JavaScript dell'area soci. La forma che funziona è
   `node --input-type=module --check < file.js`.
+- **Un `permission-denied` può arrivare da una LETTURA.** Firestore restituisce
+  403 anche per il rifiuto delle regole, e nel pannello di rete sembra un
+  problema di accesso al servizio. Guarda *quale* chiamata fallisce:
+  `BatchGetDocuments` è una lettura, `Commit` una scrittura. Ci si perde
+  parecchio tempo a cercare il buco nella scrittura sbagliata.
 - **`replaceChildren(null)` scrive «null» nella pagina.** Accetta nodi *o
   stringhe*, quindi un ternario che ricade su `null` diventa testo visibile.
   Dentro `el()` il problema non c'è (i figli null vengono scartati), ma nelle

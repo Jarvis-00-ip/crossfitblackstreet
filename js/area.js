@@ -514,8 +514,47 @@ function initBooking({ db, S, user, profile }) {
    * premono "Prenota" nello stesso istante occuperebbero lo stesso posto.
    * Le Security Rules verificano proprio questa simultaneità con getAfter().
    */
+  /**
+   * Aggiornamento ottimistico dello stato locale.
+   *
+   * La scheda cambiava aspetto solo quando il listener realtime rimandava i
+   * dati. Se quel canale è lento — o bloccato da una rete che non gradisce le
+   * connessioni lunghe, cosa che succede — la scrittura andava a buon fine ma
+   * il pulsante restava «Prenota»: il socio ci riclicca sopra e si sente dire
+   * che ha già prenotato. Sembra un guasto, ed è solo un'interfaccia ferma.
+   *
+   * Quindi appena la transazione è confermata si aggiorna anche lo stato
+   * locale, con lo stesso conto che ha appena fatto il server. Non è una
+   * verità parallela: al primo snapshot il listener sovrascrive tutto.
+   *
+   * Si scrive il valore **assoluto** deciso dalla transazione, non un `+1`.
+   * Con l'incremento relativo il conto si applicava due volte quando il
+   * listener era già arrivato — un posto prenotato ne toglieva due — mentre
+   * riscrivere lo stesso numero, arrivi prima o dopo, dà sempre lo stesso
+   * risultato.
+   */
+  function patchSession(sessionId, valoriScritti) {
+    const current = state.sessions.get(sessionId);
+    if (!current || !valoriScritti) return;
+    state.sessions.set(sessionId, { ...current, ...valoriScritti });
+  }
+
+  /** Riga locale equivalente a quella appena scritta su Firestore. */
+  function localRow(slot) {
+    const session = state.sessions.get(slot.id);
+    return {
+      uid: user.uid,
+      sessionId: slot.id,
+      userName: profile.name,
+      userEmail: (user.email || '').toLowerCase(),
+      startsAt: session?.startsAt || slot.startsAt,
+      type: session?.type || slot.type,
+    };
+  }
+
   async function book(slot) {
     const bookingId = `${user.uid}_${slot.id}`;
+    let scritto = null;
 
     await S.runTransaction(db, async (tx) => {
       const sessionRef = S.doc(db, COLLECTIONS.sessions, slot.id);
@@ -530,7 +569,8 @@ function initBooking({ db, S, user, profile }) {
       if (data.booked >= data.capacity) throw new Error('Posti esauriti.');
       if ((await tx.get(bookingRef)).exists()) throw new Error('Hai già prenotato questa classe.');
 
-      tx.update(sessionRef, { booked: data.booked + 1 });
+      scritto = { booked: data.booked + 1 };
+      tx.update(sessionRef, scritto);
       tx.set(bookingRef, {
         uid: user.uid,
         sessionId: slot.id,
@@ -541,6 +581,9 @@ function initBooking({ db, S, user, profile }) {
         createdAt: S.serverTimestamp(),
       });
     });
+
+    state.mine.set(slot.id, localRow(slot));
+    patchSession(slot.id, scritto);
   }
 
   /**
@@ -550,6 +593,7 @@ function initBooking({ db, S, user, profile }) {
    * regole, e il primo posto libero finirebbe a chi passa di lì per caso.
    */
   async function joinWaitlist(slot) {
+    let scritto = null;
     await S.runTransaction(db, async (tx) => {
       const sessionRef = S.doc(db, COLLECTIONS.sessions, slot.id);
       const waitRef = S.doc(db, COLLECTIONS.waitlist, `${user.uid}_${slot.id}`);
@@ -562,7 +606,8 @@ function initBooking({ db, S, user, profile }) {
       if (data.booked < data.capacity) throw new Error('Si è appena liberato un posto: prenota direttamente.');
       if ((await tx.get(waitRef)).exists()) throw new Error('Sei già in lista d\'attesa.');
 
-      tx.update(sessionRef, { waiting: (data.waiting || 0) + 1 });
+      scritto = { waiting: (data.waiting || 0) + 1 };
+      tx.update(sessionRef, scritto);
       tx.set(waitRef, {
         uid: user.uid,
         sessionId: slot.id,
@@ -573,10 +618,14 @@ function initBooking({ db, S, user, profile }) {
         joinedAt: S.serverTimestamp(),
       });
     });
+
+    state.waiting.set(slot.id, localRow(slot));
+    patchSession(slot.id, scritto);
   }
 
   /** Esce dalla coda. */
   async function leaveWaitlist(slotId) {
+    let scritto = null;
     await S.runTransaction(db, async (tx) => {
       const sessionRef = S.doc(db, COLLECTIONS.sessions, slotId);
       const waitRef = S.doc(db, COLLECTIONS.waitlist, `${user.uid}_${slotId}`);
@@ -585,10 +634,14 @@ function initBooking({ db, S, user, profile }) {
       if (!wait.exists()) return;
 
       if (snap.exists()) {
-        tx.update(sessionRef, { waiting: Math.max(0, (snap.data().waiting || 0) - 1) });
+        scritto = { waiting: Math.max(0, (snap.data().waiting || 0) - 1) };
+        tx.update(sessionRef, scritto);
       }
       tx.delete(waitRef);
     });
+
+    state.waiting.delete(slotId);
+    patchSession(slotId, scritto);
   }
 
   /**
@@ -597,6 +650,7 @@ function initBooking({ db, S, user, profile }) {
    * Tutto insieme, perché le regole verificano proprio questa simultaneità.
    */
   async function bookFromWaitlist(slot) {
+    let scritto = null;
     await S.runTransaction(db, async (tx) => {
       const sessionRef = S.doc(db, COLLECTIONS.sessions, slot.id);
       const bookingRef = S.doc(db, COLLECTIONS.bookings, `${user.uid}_${slot.id}`);
@@ -610,10 +664,11 @@ function initBooking({ db, S, user, profile }) {
       if (data.cancelled) throw new Error('Questa classe è stata annullata.');
       if (data.booked >= data.capacity) throw new Error('Il posto è già stato preso.');
 
-      tx.update(sessionRef, {
+      scritto = {
         booked: data.booked + 1,
         waiting: Math.max(0, (data.waiting || 0) - 1),
-      });
+      };
+      tx.update(sessionRef, scritto);
       tx.set(bookingRef, {
         uid: user.uid,
         sessionId: slot.id,
@@ -625,10 +680,15 @@ function initBooking({ db, S, user, profile }) {
       });
       tx.delete(waitRef);
     });
+
+    state.waiting.delete(slot.id);
+    state.mine.set(slot.id, localRow(slot));
+    patchSession(slot.id, scritto);
   }
 
   /** Disdice, restituendo il posto nella stessa transazione. */
   async function cancel(slotId) {
+    let scritto = null;
     await S.runTransaction(db, async (tx) => {
       const sessionRef = S.doc(db, COLLECTIONS.sessions, slotId);
       const bookingRef = S.doc(db, COLLECTIONS.bookings, `${user.uid}_${slotId}`);
@@ -637,10 +697,14 @@ function initBooking({ db, S, user, profile }) {
       if (!bookingSnap.exists()) return;
 
       if (sessionSnap.exists()) {
-        tx.update(sessionRef, { booked: Math.max(0, sessionSnap.data().booked - 1) });
+        scritto = { booked: Math.max(0, sessionSnap.data().booked - 1) };
+        tx.update(sessionRef, scritto);
       }
       tx.delete(bookingRef);
     });
+
+    state.mine.delete(slotId);
+    patchSession(slotId, scritto);
   }
 
   async function run(slotId, action, successMessage = 'Fatto.') {
@@ -949,7 +1013,7 @@ function initBooking({ db, S, user, profile }) {
       state.sessions = new Map(snapshot.docs.map((d) => [d.id, d.data()]));
       renderCalendar();
     },
-    (error) => showError(`Calendario non leggibile: ${error.message}`)
+    (error) => toast('err', `Calendario non leggibile: ${error.message}`)
   );
 
   const stopMine = S.onSnapshot(
@@ -959,7 +1023,7 @@ function initBooking({ db, S, user, profile }) {
       renderCalendar();
       renderMine();
     },
-    (error) => showError(`Prenotazioni non leggibili: ${error.message}`)
+    (error) => toast('err', `Prenotazioni non leggibili: ${error.message}`)
   );
 
   const stopWaiting = S.onSnapshot(
@@ -969,11 +1033,46 @@ function initBooking({ db, S, user, profile }) {
       renderCalendar();
       renderMine();
     },
-    (error) => showError(`Lista d'attesa non leggibile: ${error.message}`)
+    (error) => toast('err', `Lista d'attesa non leggibile: ${error.message}`)
   );
 
   renderCalendar();
   renderMine();
+
+  /**
+   * Riallineamento su richiesta, quando la scheda torna in primo piano.
+   *
+   * I listener sono la via normale, ma non sono garantiti: una rete che
+   * chiude le connessioni lunghe, un'estensione del browser o una sospensione
+   * del portatile li lasciano muti senza dire niente, e da lì in poi la pagina
+   * mostra i posti di mezz'ora fa — cioè fa prenotare classi già piene.
+   *
+   * Rileggere tutto costa tre query e solo quando qualcuno guarda davvero la
+   * pagina; il limite di trenta secondi evita di ripeterlo a ogni cambio di
+   * finestra. Non sostituisce i listener: li copre quando tacciono.
+   */
+  let lastRefresh = Date.now();
+  async function refresh() {
+    if (document.hidden || Date.now() - lastRefresh < 30_000) return;
+    lastRefresh = Date.now();
+    try {
+      const [sessions, mine, waiting] = await Promise.all([
+        S.getDocs(S.query(S.collection(db, COLLECTIONS.sessions), S.where('startsAt', '>', new Date()))),
+        S.getDocs(S.query(S.collection(db, COLLECTIONS.bookings), S.where('uid', '==', user.uid))),
+        S.getDocs(S.query(S.collection(db, COLLECTIONS.waitlist), S.where('uid', '==', user.uid))),
+      ]);
+      state.sessions = new Map(sessions.docs.map((d) => [d.id, d.data()]));
+      state.mine = new Map(mine.docs.map((d) => [d.data().sessionId, d.data()]));
+      state.waiting = new Map(waiting.docs.map((d) => [d.data().sessionId, d.data()]));
+      renderCalendar();
+      renderMine();
+    } catch (error) {
+      // Un riallineamento fallito non è un guasto: i dati che ci sono restano
+      // buoni. Dirlo a schermo servirebbe solo a spaventare.
+      console.warn('Riallineamento non riuscito:', error.message);
+    }
+  }
+  document.addEventListener('visibilitychange', refresh);
 
   // A mezzanotte la classe di ieri esce dal calendario ed entra nello
   // storico: senza questo, una pagina lasciata aperta resterebbe a ieri.
@@ -984,6 +1083,7 @@ function initBooking({ db, S, user, profile }) {
     stopMine();
     stopWaiting();
     stopMidnight();
+    document.removeEventListener('visibilitychange', refresh);
   };
 }
 
