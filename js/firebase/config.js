@@ -82,6 +82,17 @@ export const WEEKS_TO_GENERATE = 4;
 export const MIN_COVERAGE_DAYS = 14;
 
 /**
+ * Archivio delle presenze visibile allo staff. Oltre questa soglia i dati
+ * vengono eliminati alla prima apertura del pannello: conservare presenze
+ * all'infinito non serve a nessuno ed è il contrario di quanto chiede il
+ * principio di limitazione della conservazione.
+ */
+export const ADMIN_ARCHIVE_DAYS = 30;
+
+/** Quanto indietro un socio vede le proprie prenotazioni passate. */
+export const MEMBER_HISTORY_DAYS = 14;
+
+/**
  * UID del proprietario. Serve solo all'interfaccia, per mostrare chi è
  * l'owner e per nascondere i comandi che non potrebbe usare comunque.
  *

@@ -402,9 +402,12 @@ service cloud.firestore {
       allow read: if true;
 
       allow create: if isAdmin() && validSession();
-      // Una classe con iscritti non si cancella, si annulla: chi ha prenotato
-      // deve poterlo vedere invece di trovare il vuoto.
-      allow delete: if isAdmin() && resource.data.booked == 0;
+      // Una classe futura con iscritti non si cancella, si annulla: chi ha
+      // prenotato deve poterlo vedere invece di trovare il vuoto.
+      // Una classe passata invece si elimina, iscritti compresi: è la pulizia
+      // dell'archivio oltre il periodo di conservazione.
+      allow delete: if isAdmin()
+        && (resource.data.booked == 0 || resource.data.startsAt < request.time);
 
       allow update: if takesSeat()
         || takesSeatFromWaitlist()
@@ -455,16 +458,24 @@ service cloud.firestore {
         return duration.value(2, 'h');
       }
 
-      allow delete: if request.auth != null
-        && (
-          isAdmin()
-          || (resource.data.uid == request.auth.uid
-              && resource.data.startsAt > request.time + cancelCutoff())
-        )
-        // Anche la disdetta deve restituire il posto: senza questo vincolo il
-        // corso resterebbe pieno di prenotazioni cancellate.
-        && getAfter(sessionRef(resource.data.sessionId)).data.booked
-             == get(sessionRef(resource.data.sessionId)).data.booked - 1;
+      // Il posto va restituito nella stessa operazione: senza questo vincolo
+      // il corso resterebbe pieno di prenotazioni cancellate.
+      function seatGivenBack() {
+        return getAfter(sessionRef(resource.data.sessionId)).data.booked
+            == get(sessionRef(resource.data.sessionId)).data.booked - 1;
+      }
+
+      allow delete: if request.auth != null && (
+        // il socio disdice, entro il termine
+        (resource.data.uid == request.auth.uid
+         && resource.data.startsAt > request.time + cancelCutoff()
+         && seatGivenBack())
+        // lo staff toglie un iscritto da una classe futura
+        || (isAdmin() && resource.data.startsAt > request.time && seatGivenBack())
+        // pulizia dell'archivio: la classe è passata e sparisce con tutto il
+        // resto, quindi non c'è nessun contatore da aggiornare
+        || (isAdmin() && resource.data.startsAt < request.time)
+      );
     }
 
     /* ---------------------------------------------------------------- *
@@ -509,10 +520,13 @@ service cloud.firestore {
 
       // Si esce dalla coda per due motivi: rinuncia, oppure perché si è preso
       // il posto. In entrambi i casi il contatore deve scendere.
-      allow delete: if request.auth != null
-        && (isAdmin() || resource.data.uid == request.auth.uid)
-        && getAfter(sessionRef(resource.data.sessionId)).data.waiting
-             == get(sessionRef(resource.data.sessionId)).data.waiting - 1;
+      allow delete: if request.auth != null && (
+        ((isAdmin() || resource.data.uid == request.auth.uid)
+         && getAfter(sessionRef(resource.data.sessionId)).data.waiting
+              == get(sessionRef(resource.data.sessionId)).data.waiting - 1)
+        // pulizia dell'archivio, come per le prenotazioni
+        || (isAdmin() && resource.data.startsAt < request.time)
+      );
     }
 
     /* ---------------------------------------------------------------- *

@@ -433,3 +433,18 @@
   background: rgba(255, 91, 91, 0.08);
 }
 .owner-note.is-alarm strong { color: #ff8a8a; }
+
+/* ---------- Archivio ---------- */
+.archive-day + .archive-day { margin-top: 26px; }
+.archive-day-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 1.2rem;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  color: #dcdce2;
+}

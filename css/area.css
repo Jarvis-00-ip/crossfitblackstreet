@@ -196,3 +196,42 @@
   color: #e8dcc4;
 }
 .calendar-notice strong { color: var(--hyrox); }
+
+/* ---------- Esito delle azioni ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 120;
+  margin: 0;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 14px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: rgba(20, 20, 24, 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  text-align: center;
+  animation: toastIn 0.28s var(--ease);
+}
+.toast.is-ok {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #a7f3c0;
+}
+.toast.is-err {
+  border-color: rgba(255, 91, 91, 0.55);
+  color: #ffb0b0;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
+
+.history-block { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line); }
+.history-block .admin-subtitle { display: flex; align-items: center; gap: 10px; margin-top: 0; border-top: 0; padding-top: 0; }

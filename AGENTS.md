@@ -191,6 +191,45 @@ esige `exists(bookingRef())`. Senza, chiunque potrebbe abbassare il contatore
 di una classe a cui non è iscritto, farla risultare libera e mandarla in
 overbooking. Era un buco presente fino alla Fase 1.
 
+### 2.9ter L'esito di un click deve comparire dove si è cliccato
+
+Il primo tentativo mostrava gli errori in un riquadro in fondo alla pagina.
+Con quattordici giorni di calendario aperto, «in fondo alla pagina» sono
+qualche migliaio di pixel più giù: il socio clicca *Prenota*, non succede
+niente di visibile, e conclude che il sito è rotto. Il messaggio c'era, non
+era raggiungibile.
+
+Da qui il riquadro `#toast` in `area.html`: posizione fissa in basso, sempre
+nello schermo, con un messaggio diverso per ogni azione riuscita
+(«Prenotazione confermata», «Sei in lista d'attesa…») e la traduzione in
+italiano del rifiuto delle regole. Gli errori restano finché non si fa
+qualcos'altro; le conferme spariscono dopo quattro secondi.
+
+**Regola generale:** in questa pagina nessuna scrittura può concludersi in
+silenzio. Se aggiungi un'azione, dalle un messaggio.
+
+### 2.9quater L'archivio è una finestra mobile, non una collection separata
+
+Presenze passate e storico del socio **non** vengono copiati altrove: si
+leggono da `bookings` con una query relativa a `new Date()`. Trenta giorni per
+gli admin (`ADMIN_ARCHIVE_DAYS`), due settimane per il socio
+(`MEMBER_HISTORY_DAYS`, e solo le proprie: le regole non gli lasciano vedere
+le prenotazioni altrui).
+
+Ne segue che **la rotazione di mezzanotte non richiede nessun lavoro**: la
+classe di ieri esce dal calendario ed entra nell'archivio da sola, perché le
+due query si spostano insieme all'orologio. L'unico caso che rompeva questa
+proprietà è la pagina lasciata aperta tutta la notte, che continuava a
+mostrare i limiti calcolati ieri: per quello c'è `onMidnight()` in
+`session-id.js`, che ricalcola e si riabbona a mezzanotte passata.
+
+Su Spark non esistono lavori pianificati, quindi la **cancellazione** oltre i
+trenta giorni gira all'apertura del pannello, come l'estensione del calendario
+(§2.9). Prima di eliminare, il codice rilegge `startsAt` di ogni documento e
+scarta quelli che non sono davvero scaduti: una query sbagliata svuoterebbe
+l'archivio invece di potarlo, e una cancellazione non si annulla. Il costo di
+quel controllo è nulla rispetto al danno che evita.
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -287,6 +326,10 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] **Fase 1 completa**: lista d'attesa, termine di disdetta a 2 ore, vista
       presenze del giorno, certificati in scadenza, chiusure straordinarie
 - [x] «Aggiungi al calendario» con file `.ics` e promemoria
+- [x] Esito visibile di ogni azione dell'area soci (riquadro `#toast`)
+- [x] Archivio presenze per gli admin: ultimi 30 giorni, per giornata e classe
+- [x] Storico del socio: le proprie ultime 2 settimane, nessun nome altrui
+- [x] Rotazione giornaliera automatica, anche a pagina lasciata aperta
 
 ### Da fare
 
@@ -302,8 +345,9 @@ Ordinato per quando fa male non averlo, non per quanto è divertente farlo.
 
 #### Fase 2 — far tornare le persone
 
-- [ ] **Storico allenamenti** del socio: quante classi questo mese. Motiva e
-      serve a chi controlla gli abbonamenti.
+- [ ] **Statistiche sullo storico**: l'elenco delle ultime due settimane c'è
+      (§2.9quater); manca il conteggio mensile che motiva e serve a chi
+      controlla gli abbonamenti.
 - [ ] **WOD del giorno**, pubblicato dal pannello. Trasforma il sito da vetrina
       a pagina che si apre ogni mattina.
 - [ ] **PWA installabile**: manifest + service worker. Uno strumento che si usa
@@ -377,6 +421,10 @@ della sessione, non nella repo. Il metodo, se serve rifarli:
 4. **il mock deve rispettare le regole** — se lascia passare scritture che
    Firestore rifiuterebbe, il test dà falsi positivi. È già successo: un mock
    troppo permissivo faceva auto-promuovere un socio ad admin.
+5. **verifica anche cosa vede l'utente, non solo cosa scrive il codice.** Una
+   prenotazione che va a buon fine nel database ma non dice niente a schermo è
+   un guasto a tutti gli effetti: misura la posizione del messaggio d'esito
+   rispetto alla finestra, dopo aver scorso la pagina.
 
 Prima di ogni push: `node --check` su ogni file JS toccato, e nessun
 `pageerror` nelle pagine provate.
@@ -407,6 +455,17 @@ Prima di ogni push: `node --check` su ogni file JS toccato, e nessun
   della risposta del server. Non prendere decisioni distruttive senza aver
   controllato `snapshot.metadata.fromCache`.
 - **`serverTimestamp()` è `null` localmente** finché il server non conferma.
+- **Un messaggio d'errore fuori dallo schermo non esiste.** Prima di dare la
+  caccia a un bug in una scrittura che «non fa niente», controlla che il
+  riquadro dell'esito sia *dentro* la finestra: il test in
+  `verify-toast.mjs` misura proprio quello.
+- **Il codice giusto ma non pubblicato sembra identico a un bug.** Il sito gira
+  su GitHub Pages dal ramo `main`: finché non c'è il push, chi prova dal
+  telefono vede la versione precedente. Vale anche per `firestore.rules`, che
+  vanno ripubblicate a mano in console.
+- **Un mock troppo permissivo dà falsi positivi.** Un `setDoc` finto che
+  accettava tutto aveva nascosto un errore di smistamento reale. Il mock deve
+  rifiutare ciò che rifiuterebbero le regole.
 - Il sandbox di sviluppo **blocca i domini Google**: font e Firestore reale non
   sono raggiungibili durante i test. Gli errori `ERR_TUNNEL_CONNECTION_FAILED`
   sono ambientali, non bug.

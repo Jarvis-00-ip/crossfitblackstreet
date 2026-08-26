@@ -122,6 +122,9 @@
         <button class="admin-tab" id="tabSessions" role="tab" aria-selected="false" aria-controls="panelSessions" type="button">
           Classi <span class="count" id="sessionsCount">0</span>
         </button>
+        <button class="admin-tab" id="tabArchive" role="tab" aria-selected="false" aria-controls="panelArchive" type="button">
+          Archivio
+        </button>
         <button class="admin-tab" id="tabTeam" role="tab" aria-selected="false" aria-controls="panelTeam" type="button">
           Team <span class="count" id="teamCount">0</span>
         </button>
@@ -282,6 +285,15 @@
             <div class="admin-list" id="sessionsList"></div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- ---------- Archivio ---------- -->
+      <div class="admin-tabpanel" id="panelArchive" role="tabpanel" aria-labelledby="tabArchive" hidden>
+        <div class="admin-panel">
+          <h2 class="admin-title" id="archiveTitle">Archivio presenze</h2>
+          <p class="admin-desc" id="archiveDesc"></p>
+          <div id="archiveList" aria-live="polite"></div>
         </div>
       </div>
 

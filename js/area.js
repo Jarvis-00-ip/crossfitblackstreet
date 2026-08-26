@@ -17,11 +17,11 @@
 import { qs, qsa, el } from './dom.js';
 import {
   FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured,
-  CANCEL_CUTOFF_HOURS, CERT_EXPIRY_WARNING_DAYS,
+  CANCEL_CUTOFF_HOURS, CERT_EXPIRY_WARNING_DAYS, MEMBER_HISTORY_DAYS,
 } from './firebase/config.js';
 import { downloadIcs } from './ics.js';
 import { whatsappLink, SCHEDULE, CLASS_TYPES } from './data.js';
-import { expandSchedule, asDate } from './session-id.js';
+import { expandSchedule, asDate, onMidnight, daysAgo } from './session-id.js';
 import { prepareDocument, toDataUrl, humanSize, MAX_BYTES } from './upload.js';
 import { redirectOnce, clearBounce } from './redirect.js';
 
@@ -41,6 +41,31 @@ function showError(message) {
   const box = qs('#globalError');
   box.textContent = message;
   box.hidden = !message;
+}
+
+/**
+ * Avviso ancorato allo schermo per l'esito di un'azione.
+ *
+ * Serve perché `#globalError` sta in fondo al documento: con due settimane di
+ * calendario aperte è a migliaia di pixel dalla classe appena cliccata, e un
+ * errore che nessuno vede equivale a un pulsante che non fa niente. È
+ * esattamente così che una prenotazione rifiutata sembrava un guasto.
+ */
+let toastTimer = null;
+function toast(kind, message) {
+  const box = qs('#toast');
+  if (!box) return;
+
+  clearTimeout(toastTimer);
+  box.className = `toast is-${kind}`;
+  box.textContent = message;
+  box.hidden = false;
+
+  // Gli errori restano finché non succede altro: chi legge lentamente non
+  // deve rincorrere il messaggio. Le conferme spariscono da sole.
+  if (kind !== 'err') {
+    toastTimer = setTimeout(() => { box.hidden = true; }, 4000);
+  }
 }
 
 const dayFmt = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -618,15 +643,20 @@ function initBooking({ db, S, user, profile }) {
     });
   }
 
-  async function run(slotId, action) {
+  async function run(slotId, action, successMessage = 'Fatto.') {
     if (state.busy.has(slotId)) return;
     state.busy.add(slotId);
     renderCalendar();
     try {
       await action();
-      showError('');
+      toast('ok', successMessage);
     } catch (error) {
-      showError(error.message || 'Operazione non riuscita.');
+      // Le regole rifiutano con un messaggio tecnico: tradurlo evita che il
+      // socio pensi di aver sbagliato lui.
+      const denied = /permission|insufficient/i.test(error?.message || '');
+      toast('err', denied
+        ? 'Il server ha rifiutato l\'operazione. Segnalalo allo staff: le regole di sicurezza potrebbero non essere aggiornate.'
+        : error.message || 'Operazione non riuscita.');
     } finally {
       state.busy.delete(slotId);
       renderCalendar();
@@ -699,6 +729,7 @@ function initBooking({ db, S, user, profile }) {
 
     let label = 'Prenota';
     let action = () => book(slot);
+    let successNote = 'Prenotazione confermata.';
     let disabled = false;
 
     if (busy) {
@@ -710,15 +741,18 @@ function initBooking({ db, S, user, profile }) {
     } else if (mine) {
       label = 'Disdici';
       action = () => cancel(slot.id);
+      successNote = 'Prenotazione disdetta: il posto è tornato libero.';
       disabled = !canCancel(slot.startsAt);
     } else if (queued) {
       // Se nel frattempo si è liberato un posto, il pulsante cambia mestiere.
       if (left > 0) {
         label = 'Prendi il posto';
         action = () => bookFromWaitlist(slot);
+        successNote = 'Posto tuo: prenotazione confermata.';
       } else {
         label = 'Esci dalla coda';
         action = () => leaveWaitlist(slot.id);
+        successNote = 'Sei uscito dalla lista d\'attesa.';
       }
     } else if (!open) {
       label = 'Non prenotabile';
@@ -726,6 +760,7 @@ function initBooking({ db, S, user, profile }) {
     } else if (full) {
       label = 'Mettiti in coda';
       action = () => joinWaitlist(slot);
+      successNote = 'Sei in lista d\'attesa: se un posto si libera potrai prenderlo da qui.';
     } else if (reservedForQueue) {
       label = 'Riservato';
       disabled = true;
@@ -761,7 +796,7 @@ function initBooking({ db, S, user, profile }) {
         class: `mini-btn${mine || queued ? ' danger' : ''}`,
         disabled,
         text: label,
-        onClick: () => run(slot.id, action),
+        onClick: () => run(slot.id, action, successNote),
       }),
     ]);
 
@@ -788,12 +823,20 @@ function initBooking({ db, S, user, profile }) {
 
     qs('#mineCount').textContent = String(rows.filter((r) => r.start && r.start > now).length);
 
-    if (!rows.length) {
+    // Lo storico si ferma a due settimane: più indietro non serve al socio, e
+    // meno dati restano in giro meglio è.
+    const since = daysAgo(MEMBER_HISTORY_DAYS);
+    const upcoming = rows.filter((r) => r.start && r.start > now);
+    const history = rows
+      .filter((r) => r.start && r.start <= now && r.start >= since && r.kind === 'booking')
+      .reverse();
+
+    if (!upcoming.length && !history.length) {
       mineEl.replaceChildren(el('p', { class: 'admin-empty', text: 'Non hai ancora prenotazioni.' }));
       return;
     }
 
-    mineEl.replaceChildren(...rows.map((row) => {
+    const card = (row) => {
       const start = row.start;
       const past = !start || start <= now;
       const queued = row.kind === 'wait';
@@ -871,7 +914,24 @@ function initBooking({ db, S, user, profile }) {
         note ? el('p', { class: 'admin-row-meta', text: note }) : null,
         actions.length ? el('div', { class: 'admin-row-actions' }, actions) : null,
       ]);
-    }));
+    };
+
+    mineEl.replaceChildren(
+      upcoming.length
+        ? el('div', { class: 'admin-list' }, upcoming.map(card))
+        : el('p', { class: 'admin-empty', text: 'Nessuna prenotazione in programma.' }),
+
+      history.length
+        ? el('section', { class: 'history-block' }, [
+            el('h3', { class: 'admin-subtitle' }, [
+              document.createTextNode('I tuoi ultimi allenamenti '),
+              el('span', { class: 'pill', text: `${history.length}` }),
+            ]),
+            el('p', { class: 'admin-desc', text: `Le classi che hai frequentato nelle ultime ${MEMBER_HISTORY_DAYS / 7} settimane.` }),
+            el('div', { class: 'admin-list' }, history.map(card)),
+          ])
+        : null
+    );
   }
 
   /* ---------- listener realtime ---------- */
@@ -911,10 +971,15 @@ function initBooking({ db, S, user, profile }) {
   renderCalendar();
   renderMine();
 
+  // A mezzanotte la classe di ieri esce dal calendario ed entra nello
+  // storico: senza questo, una pagina lasciata aperta resterebbe a ieri.
+  const stopMidnight = onMidnight(() => { renderCalendar(); renderMine(); });
+
   return () => {
     stopSessions();
     stopMine();
     stopWaiting();
+    stopMidnight();
   };
 }
 

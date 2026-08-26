@@ -105,3 +105,37 @@ export function asDate(value) {
   }
   return null;
 }
+
+/**
+ * Esegue una funzione alla mezzanotte successiva, e poi ogni giorno.
+ *
+ * Le viste sono ancorate a `new Date()` al momento della sottoscrizione: una
+ * pagina lasciata aperta la notte continuerebbe a mostrare le classi di ieri.
+ * Al box il pannello resta aperto per ore, quindi la rotazione va fatta
+ * accadere, non sperata.
+ *
+ * @returns {() => void} per fermare la ripetizione
+ */
+export function onMidnight(callback) {
+  let timer = null;
+
+  const schedule = () => {
+    const next = new Date();
+    next.setHours(24, 0, 5, 0); // cinque secondi dopo, per non anticipare il giorno
+    timer = setTimeout(() => {
+      callback();
+      schedule();
+    }, next.getTime() - Date.now());
+  };
+
+  schedule();
+  return () => clearTimeout(timer);
+}
+
+/** Mezzanotte di N giorni fa. */
+export function daysAgo(days) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - days);
+  return d;
+}

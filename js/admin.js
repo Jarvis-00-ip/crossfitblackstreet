@@ -23,9 +23,10 @@ import { qs, el } from './dom.js';
 import {
   FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured, isOwner,
   SESSION_CAPACITY, WEEKS_TO_GENERATE, CERT_EXPIRY_WARNING_DAYS, MIN_COVERAGE_DAYS,
+  ADMIN_ARCHIVE_DAYS,
 } from './firebase/config.js';
 import { SCHEDULE, CLASS_TYPES } from './data.js';
-import { expandSchedule, asDate, dateKey } from './session-id.js';
+import { expandSchedule, asDate, dateKey, onMidnight, daysAgo } from './session-id.js';
 import { toDataUrl, humanSize } from './upload.js';
 import { redirectOnce, clearBounce } from './redirect.js';
 
@@ -293,6 +294,7 @@ function watchAuth({ auth, db, A, S }) {
       initMembers({ db, S }),
       initSessions({ db, S }),
       initToday({ db, S }),
+      initArchive({ db, S }),
     ];
   });
 }
@@ -986,7 +988,15 @@ function initToday({ db, S }) {
   }
 
   subscribe();
-  return () => { if (stopDay) stopDay(); };
+
+  // Il pannello al box resta aperto per ore: senza questo, a mezzanotte
+  // continuerebbe a mostrare le presenze di ieri.
+  const stopMidnight = onMidnight(() => { state.offset = 0; subscribe(); });
+
+  return () => {
+    if (stopDay) stopDay();
+    stopMidnight();
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -1330,6 +1340,184 @@ function initSessions({ db, S }) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Archivio presenze
+ * ------------------------------------------------------------------ */
+
+/**
+ * Chi c'era, negli ultimi `ADMIN_ARCHIVE_DAYS` giorni.
+ *
+ * L'archivio non è una collection separata: le classi passate restano dove
+ * sono e cambia solo la finestra interrogata. Il «passaggio in archivio» a
+ * mezzanotte avviene quindi da solo — il confine si sposta con l'orologio,
+ * non con un lavoro pianificato che sul piano gratuito non potremmo avere.
+ *
+ * Oltre la finestra i dati vengono eliminati: conservare le presenze
+ * all'infinito non serve, e il principio di limitazione della conservazione
+ * dice il contrario.
+ */
+function initArchive({ db, S }) {
+  const list = qs('#archiveList');
+  const state = { sessions: [], bookings: [] };
+  let stop = null;
+  let cleanupDone = false;
+
+  qs('#archiveDesc').textContent =
+    `Le classi degli ultimi ${ADMIN_ARCHIVE_DAYS} giorni con chi era presente. `
+    + 'Oltre questo periodo i dati vengono eliminati automaticamente.';
+
+  function render() {
+    const past = state.sessions.filter((session) => (asDate(session.startsAt) || 0) < new Date());
+
+    if (!past.length) {
+      list.replaceChildren(el('p', { class: 'admin-empty', text: 'Nessuna classe archiviata.' }));
+      return;
+    }
+
+    const byBooking = new Map(past.map((s) => [s.id, []]));
+    state.bookings.forEach((b) => {
+      if (byBooking.has(b.sessionId)) byBooking.get(b.sessionId).push(b);
+    });
+
+    // Raggruppate per giorno: un elenco piatto di trenta giorni è illeggibile.
+    const days = new Map();
+    past
+      .sort((a, b) => (asDate(b.startsAt)?.getTime() || 0) - (asDate(a.startsAt)?.getTime() || 0))
+      .forEach((session) => {
+        const start = asDate(session.startsAt);
+        const key = start ? dateKey(start) : '—';
+        if (!days.has(key)) days.set(key, []);
+        days.get(key).push(session);
+      });
+
+    list.replaceChildren(...[...days.entries()].map(([, sessions]) => {
+      const dayStart = asDate(sessions[0].startsAt);
+      const total = sessions.reduce((sum, s) => sum + (byBooking.get(s.id) || []).length, 0);
+
+      return el('section', { class: 'archive-day' }, [
+        el('h3', { class: 'archive-day-title' }, [
+          el('span', { text: dayStart ? dayLabelFmt.format(dayStart) : '—' }),
+          el('span', { class: 'pill', text: `${total} present${total === 1 ? 'e' : 'i'}` }),
+        ]),
+        el('div', { class: 'admin-list' }, sessions.map((session) => {
+          const people = (byBooking.get(session.id) || [])
+            .sort((a, b) => (a.userName || '').localeCompare(b.userName || ''));
+          const start = asDate(session.startsAt);
+
+          return el('article', { class: `admin-row${session.cancelled ? ' is-draft' : ''}` }, [
+            el('div', { class: 'admin-row-head' }, [
+              el('h4', {
+                class: 'admin-row-title',
+                text: `${start ? hourFmt.format(start) : '—'} · ${CLASS_TYPES[session.type]?.short || session.type}`,
+              }),
+              el('div', { class: 'pill-row' }, [
+                session.cancelled ? el('span', { class: 'pill warn', text: 'Annullata' }) : null,
+                el('span', { class: `pill${people.length ? ' on' : ''}`, text: `${people.length}` }),
+              ]),
+            ]),
+            people.length
+              ? el('p', { class: 'admin-row-body', text: people.map((p) => p.userName).join(' · ') })
+              : el('p', { class: 'admin-row-meta', text: 'Nessuno.' }),
+          ]);
+        })),
+      ]);
+    }));
+  }
+
+  /**
+   * Elimina ciò che è più vecchio della finestra di conservazione.
+   *
+   * Gira all'apertura del pannello, come l'estensione del calendario: sul
+   * piano gratuito non ci sono lavori pianificati, e affidarsi a un gesto che
+   * qualcuno deve ricordarsi vuol dire non farlo mai.
+   */
+  async function cleanup() {
+    if (cleanupDone) return;
+    cleanupDone = true;
+
+    const cutoff = daysAgo(ADMIN_ARCHIVE_DAYS);
+
+    try {
+      const stale = await Promise.all([COLLECTIONS.bookings, COLLECTIONS.waitlist, COLLECTIONS.sessions]
+        .map((name) => S.getDocs(S.query(
+          S.collection(db, name),
+          S.where('startsAt', '<', cutoff),
+          S.limit(150)
+        )).then((snap) => ({ name, docs: snap.docs }))));
+
+      // Prima prenotazioni e code, poi le classi: se sparisse prima la classe,
+      // le regole non potrebbero più verificare che ciò che resta sia passato.
+      let removed = 0;
+      for (const { name, docs } of stale) {
+        // Ricontrollo prima di cancellare. La query dovrebbe già restituire
+        // solo documenti oltre la soglia, ma una cancellazione non si annulla:
+        // se un giorno il filtro sbagliasse, questa riga è ciò che impedisce
+        // di svuotare l'archivio invece di potarlo.
+        const old = docs.filter((d) => {
+          const start = asDate(d.data()?.startsAt);
+          return start && start < cutoff;
+        });
+        if (old.length !== docs.length) {
+          console.warn(`[archivio] ${docs.length - old.length} documenti di ${name} non erano oltre la soglia: saltati.`);
+        }
+
+        for (let i = 0; i < old.length; i += RULE_SAFE_BATCH) {
+          const batch = S.writeBatch(db);
+          old.slice(i, i + RULE_SAFE_BATCH).forEach((d) => {
+            batch.delete(S.doc(db, name, d.id));
+          });
+          await batch.commit();
+          removed += Math.min(RULE_SAFE_BATCH, old.length - i);
+        }
+      }
+
+      if (removed) {
+        console.info(`[archivio] eliminati ${removed} documenti oltre i ${ADMIN_ARCHIVE_DAYS} giorni`);
+      }
+    } catch (error) {
+      // La pulizia non è essenziale: se fallisce, l'archivio resta più lungo
+      // del previsto ma nulla smette di funzionare.
+      console.warn('[archivio] pulizia non riuscita:', error.message);
+    }
+  }
+
+  function subscribe() {
+    if (stop) stop();
+    const from = daysAgo(ADMIN_ARCHIVE_DAYS);
+    const now = new Date();
+
+    qs('#archiveTitle').textContent = `Archivio presenze · ultimi ${ADMIN_ARCHIVE_DAYS} giorni`;
+
+    const stopSessions = S.onSnapshot(
+      S.query(S.collection(db, COLLECTIONS.sessions),
+        S.where('startsAt', '>=', from), S.where('startsAt', '<', now)),
+      (snap) => { state.sessions = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); },
+      (error) => showError(`Archivio non leggibile: ${error.message}`)
+    );
+
+    const stopBookings = S.onSnapshot(
+      S.query(S.collection(db, COLLECTIONS.bookings),
+        S.where('startsAt', '>=', from), S.where('startsAt', '<', now)),
+      (snap) => { state.bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() })); render(); },
+      (error) => showError(`Presenze archiviate non leggibili: ${error.message}`)
+    );
+
+    stop = () => { stopSessions(); stopBookings(); };
+  }
+
+  subscribe();
+  cleanup();
+
+  // A mezzanotte la finestra scorre: il giorno appena finito entra
+  // nell'archivio senza che nessuno debba ricaricare la pagina.
+  const stopMidnight = onMidnight(subscribe);
+
+  return () => {
+    if (stop) stop();
+    stopMidnight();
+  };
+}
+
+/* ------------------------------------------------------------------ *
  * Inviti e team
  * ------------------------------------------------------------------ */
 
@@ -1556,6 +1744,7 @@ function initTabs() {
     { tab: qs('#tabMembers'), panel: qs('#panelMembers') },
     { tab: qs('#tabToday'), panel: qs('#panelToday') },
     { tab: qs('#tabSessions'), panel: qs('#panelSessions') },
+    { tab: qs('#tabArchive'), panel: qs('#panelArchive') },
     { tab: qs('#tabTeam'), panel: qs('#panelTeam') },
   ];
 
