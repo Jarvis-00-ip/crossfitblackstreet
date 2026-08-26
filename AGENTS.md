@@ -148,7 +148,22 @@ in `ui.js` e il gestore in `senza-respiro.js` sostituiscono un'immagine non
 trovata con un riquadro che dice quale file manca. Un'icona di file rotto fa
 sembrare il sito abbandonato.
 
-### 2.10 Degradazione graduale, sempre
+### 2.10 Niente notifiche push: il calendario del socio fa meglio
+
+Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
+ovvia, ma inviarle richiede credenziali server: un client non può spedire a
+Firebase Cloud Messaging. Servirebbe una Cloud Function, quindi il piano a
+pagamento.
+
+L'alternativa non è un ripiego: un pulsante **«aggiungi al calendario»** che
+genera un file `.ics`. Il promemoria lo dà il telefono, funziona anche offline,
+non richiede permessi da concedere né infrastruttura da mantenere — e le
+persone il proprio calendario lo guardano già.
+
+Stesso ragionamento per le scadenze dei certificati: invece di email
+automatiche, una lista nel pannello e un avviso sulla pagina del socio.
+
+### 2.11 Degradazione graduale, sempre
 
 Se Firestore non risponde, la bacheca eventi ricade su `js/data.js` e il
 visitatore non se ne accorge. Se `apiKey` è vuota, il sito torna a essere
@@ -225,27 +240,79 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Sezione «WOD Senza Respiro» + carosello Instagram a caricamento differito
 - [x] Foto reali: `senza-respiro-1.jpg`, `senza-respiro-2.jpg`, `box.jpg`
 
-### Da fare, in ordine di urgenza
+### Da fare
+
+Ordinato per quando fa male non averlo, non per quanto è divertente farlo.
+
+#### Blocchi — prima di aprire ai soci
 
 - [ ] **Pubblicare `firestore.rules` in console.** Finché non è fatto, area soci
       e prenotazioni non funzionano. È il blocco numero uno.
 - [ ] **Privacy e GDPR.** Il sito archivia nome, email e **certificati medici**
-      — dati sanitari, categoria particolare (art. 9 GDPR). Servono
-      informativa, consenso esplicito, politica di conservazione e cancellazione.
-      **Da chiudere prima di aprire le registrazioni ai soci.**
+      — dati sanitari, categoria particolare (art. 9). Servono informativa,
+      consenso esplicito, politica di conservazione e cancellazione.
+
+#### Fase 1 — reggere la prima settimana vera
+
+Il gestionale funziona in demo. Queste sono le cose che mancano e che si
+sentono subito con soci veri.
+
+- [ ] **Lista d'attesa.** Oggi «Completo» è un vicolo cieco: il socio chiude la
+      pagina e non torna. Fattibile su Spark facendo promuovere il primo in coda
+      dal client di chi disdice, nella stessa transazione. È la cosa più
+      complessa dell'elenco: le regole devono verificare che il posto liberato
+      vada davvero al primo della coda.
+- [ ] **Termine per la disdetta.** Adesso si disdice fino all'orario di inizio:
+      chi molla all'ultimo lascia un posto sprecato. Serve un limite
+      configurabile (2h? 4h?) e cosa succede a chi lo supera.
+- [ ] **Vista presenze del giorno** nel pannello: chi c'è oggi alle 19.30, in una
+      lista che il coach guarda dal telefono all'ingresso. La scheda Classi
+      elenca le sessioni future, che è un'altra cosa.
+- [ ] **Certificati in scadenza.** `certExpiresAt` è già archiviato ma non lo
+      guarda nessuno: basta una lista nel pannello e un avviso al socio. Valore
+      immediato, zero infrastruttura nuova.
+- [ ] **Chiusure straordinarie** (festività, ferie): oggi si cancellano le
+      sessioni una per una.
+
+#### Fase 2 — far tornare le persone
+
+- [ ] **«Aggiungi al calendario» (.ics)** sulla prenotazione. Il promemoria lo dà
+      il telefono del socio, e a noi non costa nulla — vedi §2.11 sul perché non
+      sono notifiche push.
+- [ ] **Storico allenamenti** del socio: quante classi questo mese. Motiva e
+      serve a chi controlla gli abbonamenti.
+- [ ] **WOD del giorno**, pubblicato dal pannello. Trasforma il sito da vetrina
+      a pagina che si apre ogni mattina.
+- [ ] **PWA installabile**: manifest + service worker. Uno strumento che si usa
+      tre volte a settimana merita un'icona sulla schermata iniziale.
+- [ ] **Palinsesto editabile dal pannello** (oggi in `data.js`, serve un commit).
+
+#### Fase 3 — farsi trovare e convertire
+
+Richiedono contenuti della società, non codice.
+
 - [ ] Contenuti reali: indirizzo del box, iframe Google Maps, evento in corso
       (quello in `data.js` è una demo con data passata). Lo sfondo del hero è
-      ancora un disegno SVG: va sostituito con foto o video del box vero
-      (istruzioni nel commento sopra `.hero-art` in `index.html`)
-- [ ] Capienze reali per tipo di classe (`SESSION_CAPACITY` in `config.js`)
-- [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze)
-- [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile
-- [ ] Font self-hosted (oggi da Google Fonts: l'IP dei visitatori raggiunge Google)
-- [ ] Testo di «WOD Senza Respiro» da confermare con la società, e consenso di
-      Lucia Dimola per nome e condizione di salute (dato particolare, art. 9)
-- [ ] Codici dei post Instagram da mettere in `INSTAGRAM_POSTS` (`data.js`)
-- [ ] Prezzi, FAQ prima prova, sezione coach — i contenuti che convertono
-- [ ] WOD del giorno, per dare un motivo di tornare ogni giorno
+      ancora un disegno SVG.
+- [ ] **Prezzi.** È la prima cosa che cerca chi valuta una palestra, e non c'è.
+- [ ] **FAQ prima prova** e **sezione coach**: smontano le obiezioni di chi non
+      ha mai fatto CrossFit.
+- [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile.
+- [ ] Font self-hosted (oggi da Google Fonts: l'IP dei visitatori va a Google).
+- [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze).
+- [ ] Capienze reali per tipo di classe (`SESSION_CAPACITY` in `config.js`).
+- [ ] Testo di «WOD Senza Respiro» da confermare, e consenso di Lucia Dimola per
+      nome e condizione di salute (dato particolare, art. 9).
+- [ ] Codici dei post Instagram in `INSTAGRAM_POSTS` (`data.js`).
+
+#### Fuori portata senza il piano Blaze
+
+Non sono «da fare»: sono cose che richiedono un backend, quindi una decisione
+di spesa prima che di codice.
+
+- Pagamenti e abbonamenti online (servono un PSP e un webhook che lo ascolti).
+- Notifiche push programmate — vedi §2.11.
+- Email automatiche a soci e lead.
 
 ---
 
