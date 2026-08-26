@@ -654,7 +654,22 @@ function initBooking({ db, S, user, profile }) {
       groups.get(key).push(slot);
     });
 
+    // Se non esiste nemmeno una classe prenotabile, un muro di pulsanti
+    // spenti non spiega niente: il socio pensa che il sito sia rotto, non
+    // che il box non abbia ancora aperto le prenotazioni.
+    const nothingOpen = state.sessions.size === 0;
+
     listEl.replaceChildren(
+      nothingOpen
+        ? el('p', { class: 'calendar-notice' }, [
+            el('strong', { text: 'Prenotazioni non ancora aperte. ' }),
+            el('span', {
+              text: 'Qui sotto trovi il palinsesto del box: appena lo staff apre il '
+                + 'calendario potrai prenotare da questa pagina. Nel frattempo, per un '
+                + 'posto scrivici su WhatsApp.',
+            }),
+          ])
+        : null,
       ...[...groups.entries()].map(([, daySlots]) =>
         el('section', { class: 'day-block' }, [
           el('h3', { class: 'day-block-title', text: dayFmt.format(daySlots[0].startsAt) }),
@@ -706,7 +721,7 @@ function initBooking({ db, S, user, profile }) {
         action = () => leaveWaitlist(slot.id);
       }
     } else if (!open) {
-      label = 'Non aperta';
+      label = 'Non prenotabile';
       disabled = true;
     } else if (full) {
       label = 'Mettiti in coda';
@@ -717,7 +732,7 @@ function initBooking({ db, S, user, profile }) {
     }
 
     let seats;
-    if (!open) seats = 'non aperta';
+    if (!open) seats = 'non ancora aperta';
     else if (cancelled) seats = 'annullata';
     else if (queued && left > 0) seats = 'posto libero!';
     else if (queued) seats = `sei in coda · ${inQueue} in attesa`;

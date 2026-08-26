@@ -148,6 +148,27 @@ in `ui.js` e il gestore in `senza-respiro.js` sostituiscono un'immagine non
 trovata con un riquadro che dice quale file manca. Un'icona di file rotto fa
 sembrare il sito abbandonato.
 
+### 2.9 Le classi prenotabili scadono, quindi si riaprono da sole
+
+Il palinsesto in `data.js` dice *quando* si allena il box. Le classi
+prenotabili sono un'altra cosa: documenti in `sessions`, uno per occorrenza,
+necessari perché il contatore dei posti deve stare da qualche parte.
+
+Ne consegue una trappola: sono generati per un orizzonte finito, e finita la
+copertura i soci vedono tutto «non prenotabile». Nessun errore, nessun avviso
+— solo prenotazioni che smettono di funzionare, e ci si accorge dalla
+lamentela. È un guasto silenzioso, la specie peggiore.
+
+Per questo il pannello **estende il calendario da solo** quando la copertura
+scende sotto `MIN_COVERAGE_DAYS`, all'apertura della scheda Classi. Gli admin
+il pannello lo aprono; ricordarsi di premere un pulsante ogni mese no. La
+scheda mostra sempre quanti giorni sono ancora aperti, e il pulsante resta per
+forzare la cosa.
+
+Lato socio, quando **nessuna** classe è prenotabile compare una spiegazione al
+posto del muro di pulsanti spenti: un'interfaccia tutta disabilitata sembra
+rotta, non in attesa.
+
 ### 2.9bis La lista d'attesa non promuove nessuno: riserva il posto
 
 Quando un posto si libera **non** viene assegnato al primo della coda.

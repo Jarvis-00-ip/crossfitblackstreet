@@ -63,12 +63,23 @@ export const CERT_EXPIRY_WARNING_DAYS = 30;
  * calendario. La capienza è poi modificabile sessione per sessione.
  */
 export const SESSION_CAPACITY = {
-  CF: 14,
+  CF: 10,
   HYROX: 10,
 };
 
-/** Quante settimane di calendario genera il pannello in un colpo solo. */
+/** Quante settimane di calendario vengono aperte in un colpo solo. */
 export const WEEKS_TO_GENERATE = 4;
+
+/**
+ * Sotto questa copertura il pannello riapre il calendario da solo.
+ *
+ * Serve a evitare un guasto silenzioso: le classi prenotabili sono documenti
+ * con una scadenza: finite quelle, i soci vedono tutto «non prenotabile» e
+ * nessuno se ne accorge finché non arriva la lamentela. Un'estensione
+ * automatica all'apertura del pannello elimina il problema — gli admin il
+ * pannello lo aprono, ricordarsi di premere un pulsante ogni mese no.
+ */
+export const MIN_COVERAGE_DAYS = 14;
 
 /**
  * UID del proprietario. Serve solo all'interfaccia, per mostrare chi è

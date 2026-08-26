@@ -246,9 +246,14 @@
           <div class="admin-panel">
             <h2 class="admin-title">Apri le prenotazioni</h2>
             <p class="admin-desc">
-              Crea le classi prenotabili a partire dal palinsesto. Le classi già esistenti
-              non vengono toccate: iscritti e capienza restano come sono.
+              Le classi prenotabili sono documenti con una scadenza, non il palinsesto:
+              finché non esistono, i soci vedono tutto «non prenotabile». Vengono aperte
+              da sole quando il pannello si apre e la copertura si accorcia — il pulsante
+              serve solo a forzare la cosa. Le classi già esistenti non vengono toccate:
+              iscritti e capienza restano come sono.
             </p>
+            <p class="owner-note" id="coverageBox" role="status" aria-live="polite"></p>
+
             <button type="button" class="btn btn-primary btn-block" id="generateBtn">Genera calendario</button>
             <p class="form-status" id="generateStatus" role="status" aria-live="polite"></p>
 

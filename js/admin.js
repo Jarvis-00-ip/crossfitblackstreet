@@ -22,7 +22,7 @@
 import { qs, el } from './dom.js';
 import {
   FIREBASE_CONFIG, FIREBASE_SDK_VERSION, COLLECTIONS, isConfigured, isOwner,
-  SESSION_CAPACITY, WEEKS_TO_GENERATE, CERT_EXPIRY_WARNING_DAYS,
+  SESSION_CAPACITY, WEEKS_TO_GENERATE, CERT_EXPIRY_WARNING_DAYS, MIN_COVERAGE_DAYS,
 } from './firebase/config.js';
 import { SCHEDULE, CLASS_TYPES } from './data.js';
 import { expandSchedule, asDate, dateKey } from './session-id.js';
@@ -985,45 +985,114 @@ function initSessions({ db, S }) {
 
   /* ---------- generazione del calendario ---------- */
 
+  /**
+   * Apre le classi mancanti nelle prossime settimane.
+   * @returns {Promise<number>} quante ne ha create
+   */
+  async function openMissingSessions() {
+    const slots = expandSchedule(SCHEDULE, WEEKS_TO_GENERATE * 7)
+      .filter((slot) => slot.startsAt > new Date());
+
+    // Le classi già esistenti si saltano: sovrascriverle azzererebbe il
+    // contatore dei posti e cancellerebbe di fatto le prenotazioni.
+    const existing = new Set(state.sessions.map((s) => s.id));
+    const missing = slots.filter((slot) => !existing.has(slot.id));
+    if (!missing.length) return 0;
+
+    // Batch da 400: il limite di Firestore è 500 operazioni.
+    for (let i = 0; i < missing.length; i += 400) {
+      const batch = S.writeBatch(db);
+      missing.slice(i, i + 400).forEach((slot) => {
+        batch.set(S.doc(db, COLLECTIONS.sessions, slot.id), {
+          startsAt: slot.startsAt,
+          type: slot.type,
+          capacity: SESSION_CAPACITY[slot.type] ?? 10,
+          booked: 0,
+          waiting: 0,
+          cancelled: false,
+          createdAt: S.serverTimestamp(),
+        });
+      });
+      await batch.commit();
+    }
+    return missing.length;
+  }
+
+  /** Giorni di calendario ancora aperti davanti a noi. */
+  function coverageDays() {
+    const last = state.sessions.reduce(
+      (max, session) => Math.max(max, asDate(session.startsAt)?.getTime() || 0),
+      0
+    );
+    return last ? Math.max(0, Math.ceil((last - Date.now()) / 86400000)) : 0;
+  }
+
+  function renderCoverage() {
+    const days = coverageDays();
+    const box = qs('#coverageBox');
+    if (!box) return;
+
+    if (!state.sessions.length) {
+      box.className = 'owner-note is-alarm';
+      box.replaceChildren(
+        el('strong', { text: 'Nessuna classe aperta. ' }),
+        el('span', { text: 'I soci vedono tutte le lezioni come non prenotabili finché il calendario non viene generato.' })
+      );
+      return;
+    }
+
+    box.className = days <= MIN_COVERAGE_DAYS ? 'owner-note is-alarm' : 'owner-note';
+    box.replaceChildren(
+      el('strong', { text: `Calendario aperto per ${days} giorn${days === 1 ? 'o' : 'i'}. ` }),
+      el('span', {
+        text: days <= MIN_COVERAGE_DAYS
+          ? 'Sta per esaurirsi: viene esteso in automatico alla prossima apertura del pannello.'
+          : `Sotto i ${MIN_COVERAGE_DAYS} giorni viene esteso da solo.`,
+      })
+    );
+  }
+
+  /**
+   * Estende il calendario senza che nessuno debba ricordarsene.
+   * Gira una volta per sessione: al secondo snapshot la copertura è già
+   * tornata alta, quindi non si ripete comunque.
+   */
+  let autoExtendDone = false;
+  async function autoExtend() {
+    if (autoExtendDone) return;
+    autoExtendDone = true;
+
+    if (state.sessions.length && coverageDays() > MIN_COVERAGE_DAYS) return;
+
+    // Va letto adesso: la scrittura fa scattare un nuovo snapshot, e dopo
+    // l'await `state.sessions` è già popolato — il messaggio direbbe che il
+    // calendario "stava per esaurirsi" anche quando non esisteva affatto.
+    const wasEmpty = state.sessions.length === 0;
+
+    try {
+      const created = await openMissingSessions();
+      if (!created) return;
+      status.className = 'form-status ok';
+      status.textContent = wasEmpty
+        ? `Calendario aperto: ${created} classi prenotabili nelle prossime ${WEEKS_TO_GENERATE} settimane.`
+        : `Il calendario stava per esaurirsi: aperte ${created} nuove classi.`;
+    } catch (error) {
+      status.className = 'form-status err';
+      status.textContent = `Apertura automatica non riuscita: ${error.message}`;
+    }
+  }
+
   button.addEventListener('click', async () => {
     button.disabled = true;
     status.className = 'form-status';
     status.textContent = 'Generazione…';
 
     try {
-      const slots = expandSchedule(SCHEDULE, WEEKS_TO_GENERATE * 7)
-        .filter((slot) => slot.startsAt > new Date());
-
-      // Le classi già esistenti si saltano: sovrascriverle azzererebbe il
-      // contatore dei posti e cancellerebbe di fatto le prenotazioni.
-      const existing = new Set(state.sessions.map((s) => s.id));
-      const missing = slots.filter((slot) => !existing.has(slot.id));
-
-      if (!missing.length) {
-        status.classList.add('ok');
-        status.textContent = 'Calendario già completo: nessuna nuova classe da aprire.';
-        return;
-      }
-
-      // Batch da 400: il limite di Firestore è 500 operazioni.
-      for (let i = 0; i < missing.length; i += 400) {
-        const batch = S.writeBatch(db);
-        missing.slice(i, i + 400).forEach((slot) => {
-          batch.set(S.doc(db, COLLECTIONS.sessions, slot.id), {
-            startsAt: slot.startsAt,
-            type: slot.type,
-            capacity: SESSION_CAPACITY[slot.type] ?? 12,
-            booked: 0,
-            waiting: 0,
-            cancelled: false,
-            createdAt: S.serverTimestamp(),
-          });
-        });
-        await batch.commit();
-      }
-
+      const created = await openMissingSessions();
       status.classList.add('ok');
-      status.textContent = `Aperte ${missing.length} classi nelle prossime ${WEEKS_TO_GENERATE} settimane.`;
+      status.textContent = created
+        ? `Aperte ${created} classi nelle prossime ${WEEKS_TO_GENERATE} settimane.`
+        : 'Calendario già completo: nessuna nuova classe da aprire.';
     } catch (error) {
       status.classList.add('err');
       status.textContent = `Generazione non riuscita: ${error.message}`;
@@ -1218,7 +1287,9 @@ function initSessions({ db, S }) {
         .sort((a, b) => (asDate(a.startsAt)?.getTime() || 0) - (asDate(b.startsAt)?.getTime() || 0));
 
       qs('#sessionsCount').textContent = String(state.sessions.length);
+      renderCoverage();
       render();
+      autoExtend();
     },
     (error) => showError(`Lettura classi non riuscita: ${error.message}`)
   );
