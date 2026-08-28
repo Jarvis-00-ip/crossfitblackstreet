@@ -5,6 +5,7 @@
 import { qs } from './dom.js';
 import { renderServices, renderPartner } from './services.js';
 import { renderEvents } from './events.js';
+import { renderPricing } from './pricing.js';
 import { createSchedule } from './schedule.js';
 import { initContact } from './contact.js';
 import { initHeader, initScrollSpy, initReveal, initYear, initPhotoFallback } from './ui.js';
@@ -21,6 +22,7 @@ function boot() {
   renderServices(qs('#servicesGrid'));
   renderPartner(qs('#partnerCard'));
   renderEvents(qs('#eventsGrid')); // primo paint immediato da data.js
+  renderPricing(qs('#pricingRoot'));
   renderSenzaRespiro(qs('#senzaRespiro'));
   renderInstagram(qs('#instagramFeed'));
 

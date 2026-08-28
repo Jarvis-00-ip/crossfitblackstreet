@@ -322,6 +322,35 @@ l'informativa cambia, si alza `VERSIONE_CONSENSO` in `consent.js`, il banner
 ricompare a tutti e i nuovi consensi portano il numero nuovo. Un consenso di
 cui non si può dimostrare il contenuto, in pratica, non vale.
 
+### 2.9nonies Il listino è dati, non una tabella copiata
+
+Il cartellone appeso in palestra è una tabella sette per sette: sette formule
+per quattro durate, più le rate e le varianti. Su carta funziona, su un
+telefono sarebbe da ingrandire con le dita. Per questo in `data.js` il listino
+è **dati** (`PRICING`) e non markup, e `pricing.js` lo gira di novanta gradi:
+si sceglie la durata, ogni formula mostra il proprio prezzo.
+
+Tre informazioni non si deducono dai numeri e sono state date dalla società —
+se un domani il cartellone cambia, chiederle di nuovo:
+
+- i prezzi «con open box» (in azzurro sul cartellone) comprendono **un
+  ingresso in più a settimana in open box**, e non esistono per tutte le
+  formule: mostrarli ovunque farebbe promettere ciò che il box non vende;
+- le tre ore di **on ramp** sono obbligatorie per chi non ha mai fatto
+  CrossFit, ma sono **in omaggio con l'abbonamento annuale**;
+- la rateizzazione è di due tipi: fra le rate stesse (2 rate a 30 giorni sui
+  sei mesi, 3 rate a 60 giorni sull'anno) oppure mensile tramite finanziaria,
+  che vale solo sull'annuale.
+
+Le rate compaiono **solo dove esistono davvero**. Una riga «rateizzabile»
+sotto un abbonamento mensile sarebbe una promessa che al banco non si può
+mantenere.
+
+**Nota aperta:** sul cartellone compare un bollo di 16 € accanto alla prima
+rata. Non è ancora chiaro se riguardi solo la finanziaria: finché non è
+confermato non è stato pubblicato, perché un costo dichiarato male è peggio di
+un costo non dichiarato.
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -439,6 +468,8 @@ calendario ripetibile e le prenotazioni non duplicabili senza alcuna query.
 - [x] Informativa privacy, banner del consenso, blocco dei font di Google
 - [x] Consenso obbligatorio su modulo contatti e iscrizione (doppio: dati
       ordinari e dati sanitari), preteso dalle regole del server
+- [x] **Sezione Prezzi** con il listino reale del box, filtrabile per durata,
+      con rate, varianti open box e voci una tantum (§2.9nonies)
 
 ### Da fare
 
@@ -475,9 +506,13 @@ Richiedono contenuti della società, non codice.
 - [ ] Contenuti reali: indirizzo del box, iframe Google Maps, evento in corso
       (quello in `data.js` è una demo con data passata). Lo sfondo del hero è
       ancora un disegno SVG.
-- [ ] **Prezzi.** È la prima cosa che cerca chi valuta una palestra, e non c'è.
-- [ ] **FAQ prima prova** e **sezione coach**: smontano le obiezioni di chi non
-      ha mai fatto CrossFit.
+- [ ] **FAQ prima prova** e **sezione coach**: i prezzi ora ci sono, restano
+      le obiezioni di chi non ha mai fatto CrossFit.
+- [ ] **Palinsesto da verificare.** Gli orari in `data.js` non coincidono con
+      il cartellone fotografato in palestra: cambiano le collocazioni delle
+      classi HYROX e il mercoledì. Va confrontato riga per riga con la società
+      prima di correggerlo — un orario sbagliato online manda gente al box
+      nell'ora sbagliata.
 - [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile.
 - [ ] Font self-hosted (oggi da Google Fonts: l'IP dei visitatori va a Google).
 - [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze).

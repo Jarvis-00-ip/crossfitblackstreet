@@ -1554,3 +1554,160 @@ h1, h2, h3, h4 {
 @media (max-width: 560px) {
   .sr-gallery { grid-template-columns: 1fr; }
 }
+
+/* ==================================================================== *
+ * PREZZI
+ * ==================================================================== *
+ * Il cartellone in palestra è una tabella sette per sette: sul telefono
+ * sarebbe da ingrandire con le dita. Qui si sceglie la durata e ogni formula
+ * mostra il suo prezzo, una scheda per volta.
+ */
+
+.pricing { display: grid; gap: 22px; }
+
+.price-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  gap: 14px;
+}
+
+.price-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: transform 0.25s var(--ease), border-color 0.25s var(--ease);
+}
+
+.price-card:hover { transform: translateY(-3px); border-color: var(--line-strong); }
+
+/* La formula più richiesta si distingue, ma senza gridare: il listino deve
+   restare leggibile come un listino, non come una vetrina di offerte. */
+.price-card.is-featured {
+  border-color: rgba(255, 61, 23, 0.55);
+  background: linear-gradient(180deg, rgba(255, 61, 23, 0.08) 0%, var(--surface) 62%);
+}
+
+.price-flag {
+  position: absolute;
+  top: -10px;
+  left: 18px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-grad);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.price-name {
+  font-family: var(--font-display);
+  font-size: 1.32rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+.price-detail {
+  margin: 3px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.price-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 2px 0 0;
+}
+
+.price-value {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+
+.price-cur { font-family: var(--font-display); font-size: 1.25rem; color: var(--accent); }
+
+.price-rates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #c8c8d2;
+}
+
+.price-rates strong { color: var(--text); }
+.price-rates .is-alt { color: var(--muted); }
+
+/* La variante con l'open box in più: informazione secondaria, quindi
+   staccata da una riga e non mescolata al prezzo principale. */
+.price-openbox {
+  margin: auto 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.price-openbox strong { color: var(--hyrox); font-size: 0.95rem; }
+
+.price-note {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.price-extra {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.price-extra-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.price-extra-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.price-extra-list li { display: grid; gap: 2px; }
+.price-extra-list strong { font-size: 0.95rem; color: var(--text); }
+.price-extra-list span { font-size: 0.87rem; color: var(--muted); line-height: 1.55; }
+
+.price-extra .btn { justify-self: start; }
+
+@media (max-width: 560px) {
+  .price-grid { grid-template-columns: 1fr; }
+  .price-value { font-size: 2.2rem; }
+}

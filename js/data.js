@@ -171,6 +171,105 @@ export const SCHEDULE = [
   },
 ];
 
+
+/**
+ * PRICING — listino abbonamenti.
+ *
+ * Trascritto dal cartellone esposto in palestra. Due cose non ovvie, prese
+ * dalla società e non deducibili dai numeri:
+ *
+ *   - i prezzi della colonna «con open box» comprendono **un ingresso in più
+ *     a settimana in open box**, e non esistono per tutte le formule;
+ *   - le tre ore di ON RAMP sono obbligatorie per chi non ha mai fatto
+ *     CrossFit, ma sono **in omaggio con l'abbonamento annuale**: chi si
+ *     iscrive per dodici mesi non le paga.
+ *
+ * Tutti gli importi sono in euro. Modificare qui aggiorna la sezione Prezzi.
+ */
+export const PRICING = {
+  durations: [
+    { id: 'm1', label: '1 mese' },
+    { id: 'm3', label: '3 mesi' },
+    { id: 'm6', label: '6 mesi' },
+    { id: 'm12', label: '12 mesi' },
+  ],
+
+  plans: [
+    {
+      id: 'class2',
+      name: '2 ingressi',
+      detail: 'a settimana, alle classi',
+      price: { m1: 80, m3: 210, m6: 360, m12: 600 },
+      openBox: { m1: 100, m3: 270, m6: 480, m12: 840 },
+      rate: { m6: 180, m12: 200 },
+      rateOpenBox: { m6: 240, m12: 280 },
+      finanziaria: 55,
+      finanziariaOpenBox: 75,
+    },
+    {
+      id: 'class3',
+      name: '3 ingressi',
+      detail: 'a settimana, alle classi',
+      price: { m1: 90, m3: 240, m6: 420, m12: 720 },
+      openBox: { m1: 110, m3: 300, m6: 540, m12: 960 },
+      rate: { m6: 210, m12: 240 },
+      rateOpenBox: { m6: 270, m12: 320 },
+      finanziaria: 65,
+      finanziariaOpenBox: 85,
+    },
+    {
+      id: 'class4',
+      name: '4 ingressi',
+      detail: 'a settimana, alle classi',
+      price: { m1: 95, m3: 255, m6: 450, m12: 780 },
+      rate: { m6: 225, m12: 260 },
+      finanziaria: 70,
+    },
+    {
+      id: 'full',
+      name: 'Full class',
+      detail: 'ingressi illimitati alle classi',
+      price: { m1: 105, m3: 285, m6: 510, m12: 900 },
+      rate: { m6: 255, m12: 300 },
+      finanziaria: 80,
+      highlight: true,
+    },
+    {
+      id: 'openbox',
+      name: 'Open box',
+      detail: 'sala aperta, senza classi',
+      price: { m1: 100, m3: 270, m6: 480, m12: 840 },
+      rate: { m6: 240, m12: 280 },
+      finanziaria: 75,
+    },
+    {
+      id: 'fullopen',
+      name: 'Full class + open box',
+      detail: 'tutto compreso, senza limiti',
+      price: { m1: 120, m3: 335, m6: 610, m12: 1100 },
+      rate: { m6: 305, m12: 367 },
+      finanziaria: 97,
+    },
+    {
+      id: 'under20',
+      name: 'Under 20',
+      detail: 'per chi non ha ancora vent\'anni',
+      price: { m1: 80, m3: 210, m6: 380, m12: 710 },
+      rate: { m6: 190, m12: 237 },
+      finanziaria: 65,
+    },
+  ],
+
+  // Voci che si pagano una volta sola, o che non sono abbonamenti.
+  extra: {
+    tesseramento: 30,
+    onRamp: 60,
+    dropIn: 15,
+    dropIn10: 135,
+    bollo: 16,
+  },
+};
+
 export const SERVICES = [
   {
     icon: 'barbell',
