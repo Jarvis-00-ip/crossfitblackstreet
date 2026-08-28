@@ -8,7 +8,7 @@
  */
 
 import { el, icon } from './dom.js';
-import { SCHEDULE, CLASS_TYPES } from './data.js';
+import { SCHEDULE, CLASS_TYPES, SCHEDULE_NOTICE } from './data.js';
 
 const MOBILE_QUERY = '(max-width: 860px)';
 
@@ -26,7 +26,31 @@ function todayId() {
  * @param {HTMLElement} refs.dayFilters
  * @param {HTMLElement} refs.empty      messaggio "nessun risultato"
  */
-export function createSchedule({ view, typeFilters, dayFilters, empty }) {
+/**
+ * Avviso sul palinsesto in scadenza.
+ * Sta sopra la griglia e non sotto: chi legge gli orari deve sapere *prima*
+ * di prendere appunti che fra poco cambieranno.
+ */
+function renderNotice(root) {
+  if (!root) return;
+  if (!SCHEDULE_NOTICE) {
+    root.replaceChildren();
+    return;
+  }
+  root.replaceChildren(
+    el('div', { class: 'schedule-notice' }, [
+      // icon() crea l'SVG nel namespace giusto: `el('svg', ...)` produrrebbe un
+      // elemento HTML omonimo, che il browser non disegna.
+      icon('info', 'schedule-notice-icon'),
+      el('div', {}, [
+        el('strong', { text: SCHEDULE_NOTICE.title }),
+        el('span', { text: SCHEDULE_NOTICE.text }),
+      ]),
+    ])
+  );
+}
+
+export function createSchedule({ view, typeFilters, dayFilters, empty, notice }) {
   const state = { type: 'ALL', day: 'ALL', openDay: todayId() ?? 'lun' };
   const mql = window.matchMedia(MOBILE_QUERY);
 
@@ -196,6 +220,7 @@ export function createSchedule({ view, typeFilters, dayFilters, empty }) {
   /* ---------- init ---------- */
 
   renderFilters();
+  renderNotice(notice);
   render();
 
   const onBreakpoint = () => render();

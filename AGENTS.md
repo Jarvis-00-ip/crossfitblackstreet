@@ -351,6 +351,27 @@ rata. Non è ancora chiaro se riguardi solo la finanziaria: finché non è
 confermato non è stato pubblicato, perché un costo dichiarato male è peggio di
 un costo non dichiarato.
 
+### 2.9decies Cambiare il palinsesto non basta: le classi vanno rigenerate
+
+`SCHEDULE` in `data.js` dice *quando* si allena il box. Le classi prenotabili
+sono un'altra cosa: documenti in `sessions`, generati dal pannello (§2.9).
+Quindi, quando il palinsesto cambia:
+
+- le classi già generate per gli orari vecchi **restano su Firestore**. Non
+  compaiono più nel calendario del socio — che si costruisce da `SCHEDULE` —
+  ma restano visibili nel pannello e le prenotazioni fatte restano valide;
+- i nuovi orari appaiono al socio come **«non prenotabile»** finché un admin
+  non apre la scheda Classi, che genera le mancanti.
+
+Non è un difetto da correggere in fretta: è il prezzo di tenere separati il
+palinsesto (un file) e le classi prenotabili (documenti con un contatore). Ma
+va ricordato, perché fra il cambio di orari e la rigenerazione c'è una finestra
+in cui i soci non riescono a prenotare e nessuno capisce perché.
+
+Quando il palinsesto sta per cambiare lo dice `SCHEDULE_NOTICE`, che compare in
+cima alla sezione Orari: chi organizza la settimana su quegli orari deve
+saperlo prima, non scoprirlo il lunedì.
+
 ### 2.10 Niente notifiche push: il calendario del socio fa meglio
 
 Le notifiche programmate («domani hai CrossFit alle 19.30») sembrano la cosa
@@ -508,11 +529,11 @@ Richiedono contenuti della società, non codice.
       ancora un disegno SVG.
 - [ ] **FAQ prima prova** e **sezione coach**: i prezzi ora ci sono, restano
       le obiezioni di chi non ha mai fatto CrossFit.
-- [ ] **Palinsesto da verificare.** Gli orari in `data.js` non coincidono con
-      il cartellone fotografato in palestra: cambiano le collocazioni delle
-      classi HYROX e il mercoledì. Va confrontato riga per riga con la società
-      prima di correggerlo — un orario sbagliato online manda gente al box
-      nell'ora sbagliata.
+- [ ] **Palinsesto di ottobre.** Quello pubblicato ora è il cartellone in
+      vigore (agosto 2026), e la sezione Orari lo dichiara con un avviso.
+      Quando arrivano gli orari nuovi: aggiornare `SCHEDULE`, azzerare
+      `SCHEDULE_NOTICE` a `null`, **e aprire la scheda Classi del pannello**
+      perché le nuove classi vengano generate su Firestore.
 - [ ] SEO locale: JSON-LD `SportsActivityLocation`, Google Business Profile.
 - [ ] Font self-hosted (oggi da Google Fonts: l'IP dei visitatori va a Google).
 - [ ] Notifica dei nuovi lead (EmailJS su Spark, o Cloud Function su Blaze).

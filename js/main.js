@@ -33,6 +33,7 @@ function boot() {
       typeFilters: qs('#typeFilters'),
       dayFilters: qs('#dayFilters'),
       empty: qs('#scheduleEmpty'),
+      notice: qs('#scheduleNotice'),
     });
   }
 

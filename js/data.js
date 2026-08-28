@@ -86,6 +86,18 @@ export const CLASS_TYPES = {
  * Palinsesto settimanale.
  * `openBox` = fascia oraria in cui l'Area Open Box è accessibile liberamente.
  */
+/**
+ * SCHEDULE — palinsesto settimanale.
+ *
+ * ⚠️ Trascritto dal cartellone esposto in palestra (foto dell'agosto 2026).
+ * Una tabella fotografata di lato non è una fonte perfetta: se una collocazione
+ * non torna, vince il cartellone, non questo file.
+ *
+ * ⚠️ Da ottobre 2026 il palinsesto cambia. Quando arrivano gli orari nuovi si
+ * aggiorna questo blocco e si toglie SCHEDULE_NOTICE qui sotto. Le classi già
+ * generate su Firestore restano dove sono: dopo la modifica bisogna aprire la
+ * scheda Classi del pannello, che rigenera le mancanti.
+ */
 export const SCHEDULE = [
   {
     id: 'lun',
@@ -93,10 +105,10 @@ export const SCHEDULE = [
     short: 'LUN',
     openBox: '07.00 – 21.00',
     slots: [
-      { time: '07.00', type: 'HYROX' },
-      { time: '09.30', type: 'CF' },
+      { time: '07.00', type: 'CF' },
+      { time: '09.30', type: 'HYROX' },
       { time: '13.00', type: 'CF' },
-      { time: '16.30', type: 'HYROX' },
+      { time: '16.30', type: 'CF' },
       { time: '17.30', type: 'CF' },
       { time: '18.30', type: 'CF' },
       { time: '19.30', type: 'CF' },
@@ -109,7 +121,7 @@ export const SCHEDULE = [
     openBox: '07.00 – 21.00',
     slots: [
       { time: '07.00', type: 'CF' },
-      { time: '09.30', type: 'HYROX' },
+      { time: '09.30', type: 'CF' },
       { time: '13.00', type: 'CF' },
       { time: '16.30', type: 'CF' },
       { time: '17.30', type: 'HYROX' },
@@ -118,11 +130,14 @@ export const SCHEDULE = [
     ],
   },
   {
+    // Il mercoledì è l'unico giorno con otto classi e con il pomeriggio
+    // sull'ora tonda invece che alla mezza.
     id: 'mer',
     day: 'Mercoledì',
     short: 'MER',
-    openBox: '09.30 – 21.00',
+    openBox: '07.00 – 21.00',
     slots: [
+      { time: '07.00', type: 'CF' },
       { time: '09.30', type: 'CF' },
       { time: '13.00', type: 'HYROX' },
       { time: '16.00', type: 'CF' },
@@ -158,8 +173,8 @@ export const SCHEDULE = [
       { time: '13.00', type: 'CF' },
       { time: '16.30', type: 'CF' },
       { time: '17.30', type: 'CF' },
-      { time: '18.30', type: 'HYROX' },
-      { time: '19.30', type: 'CF' },
+      { time: '18.30', type: 'CF' },
+      { time: '19.30', type: 'HYROX' },
     ],
   },
   {
@@ -170,6 +185,20 @@ export const SCHEDULE = [
     slots: [{ time: '10.00', type: 'CF' }],
   },
 ];
+
+/**
+ * Avviso sul palinsesto in scadenza.
+ *
+ * Un orario che sta per cambiare va detto prima, non dopo: chi organizza la
+ * settimana su questi orari deve sapere che a ottobre non varranno più.
+ * Mettere `null` fa sparire l'avviso senza toccare altro.
+ */
+export const SCHEDULE_NOTICE = {
+  title: 'Da ottobre gli orari cambiano',
+  text: 'Questo è il palinsesto in vigore adesso. Da ottobre cambia: teniti pronto — '
+    + 'appena i nuovi orari sono definitivi li trovi qui, e le prenotazioni si '
+    + 'aggiornano da sole.',
+};
 
 
 /**
